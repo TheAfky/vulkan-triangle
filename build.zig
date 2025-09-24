@@ -14,20 +14,27 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    exe.linkSystemLibrary("glfw");
+
     b.installArtifact(exe);
 
-    // GLFW dependency
-    const glfw = b.dependency("zglfw", .{
+    //exe.linkSystemLibrary("glfw");
+    const glfw = b.dependency("glfw_zig", .{
+        .target   = target,
+        .optimize = optimize,
+    });
+    exe.linkLibrary(glfw.artifact("glfw"));
+
+    // zGLFW dependency
+    const zglfw = b.dependency("zglfw", .{
         .target   = target,
         .optimize = optimize,
     }).module("glfw");
 
-    exe.root_module.addImport("glfw", glfw);
+    exe.root_module.addImport("zglfw", zglfw);
 
     // Vulkan dependency
     const vulkan = b.dependency("vulkan", .{
-        .target   = target,
+        .target   = b.graph.host,
         .optimize = optimize,
         .registry = b.path("registry/vk.xml"),
     }).module("vulkan-zig");

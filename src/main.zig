@@ -1,10 +1,10 @@
 const std = @import("std");
-const glfw = @import("glfw");
+const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
 const window_width: u32 = 1080;
 const window_height: u32 = 720;
-const enable_validation_layers: bool = true;
+const enable_validation_layers: bool = false;
 
 const ExtensionsError = error{
     MissingGLFWExtensions,
@@ -16,16 +16,16 @@ const LayersError = error{
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) c_int;
-pub extern fn glfwCreateWindowSurface(instance: vk.Instance, window: *glfw.Window, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;
+pub extern fn glfwCreateWindowSurface(instance: vk.Instance, window: *zglfw.Window, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;
 
 pub fn main() !void {
-    try glfw.init();
-    defer glfw.terminate();
+    try zglfw.init();
+    defer zglfw.terminate();
 
-    glfw.windowHint(glfw.ClientAPI, glfw.NoAPI);
-    glfw.windowHint(glfw.Resizable, 0);
-    const window = try glfw.createWindow(window_width, window_height, "Vulkan Triangle", null, null);
-    defer glfw.destroyWindow(window);
+    zglfw.windowHint(zglfw.ClientAPI, zglfw.NoAPI);
+    zglfw.windowHint(zglfw.Resizable, 0);
+    const window = try zglfw.createWindow(window_width, window_height, "Vulkan Triangle", null, null);
+    defer zglfw.destroyWindow(window);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -48,7 +48,7 @@ pub fn main() !void {
         try extension_names.append(allocator, vk.extensions.ext_debug_utils.name);
 
     var glfw_extensions_count: u32 = 0;
-    const glfw_extensions_ptr = glfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return ExtensionsError.MissingGLFWExtensions;
+    const glfw_extensions_ptr = zglfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return ExtensionsError.MissingGLFWExtensions;
 
     const glfw_extensions_slice = glfw_extensions_ptr[0..glfw_extensions_count];
     try extension_names.appendSlice(allocator, glfw_extensions_slice);
@@ -130,8 +130,8 @@ pub fn main() !void {
         defer instance.destroyDebugUtilsMessengerEXT(debug_messenger, null);
     }
 
-    while (!glfw.windowShouldClose(window)) {
-        glfw.pollEvents();
+    while (!zglfw.windowShouldClose(window)) {
+        zglfw.pollEvents();
     }
 }
 
