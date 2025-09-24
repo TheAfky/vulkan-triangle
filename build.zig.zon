@@ -1,0 +1,25 @@
+.{
+    .name = .vulkan_triangle,
+    .version = "0.0.0",
+    .fingerprint = 0x191a3a4012e6a418,
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        .vulkan = .{
+            .url = "git+https://github.com/Snektron/vulkan-zig.git#f879074293f0e2f718c93fd19cc0a96260a3aa52",
+            .hash = "vulkan-0.0.0-r7Ytx6hBAwBUnt0XA-uOkR2hda4fAHFhQITNTgJpnFkY",
+        },
+        .zglfw = .{
+            .url = "git+https://github.com/IridescenceTech/zglfw.git#d6e652f06c2876d4902a380f2268d8baba0bb818",
+            .hash = "zglfw-0.1.0-BghZXTLTAABytkC3hEPF-6wRBQJnMXFQNNNjfE3RuTa2",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "registry",
+        "License",
+        "README.md"
+    },
+}
