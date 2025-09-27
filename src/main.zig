@@ -4,7 +4,7 @@ const vk = @import("vulkan");
 
 const window_width: u32 = 1080;
 const window_height: u32 = 720;
-const enable_validation_layers: bool = false;
+const enable_validation_layers: bool = true;
 
 const ExtensionsError = error{
     MissingGLFWExtensions,
@@ -14,9 +14,20 @@ const LayersError = error{
     MissingValidationLayers,
 };
 
+const PhysicalDeviceError = error {
+    NoSuitablePhysicalDevice,
+};
+
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) c_int;
 pub extern fn glfwCreateWindowSurface(instance: vk.Instance, window: *zglfw.Window, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;
+
+const DeviceCandidate = struct {
+    physical_device: vk.PhysicalDevice,
+    physical_device_properties: vk.PhysicalDeviceProperties,
+    physical_device_features: vk.PhysicalDeviceFeatures,
+    graphics_family: u32,
+};
 
 pub fn main() !void {
     try zglfw.init();
@@ -80,8 +91,9 @@ pub fn main() !void {
             return LayersError.MissingValidationLayers;
 
         try layer_names.append(allocator, "VK_LAYER_KHRONOS_validation");
+        std.debug.print("Validation layers active\n", .{});
     } else {
-        std.debug.print("Validation layers inactive", .{});
+        std.debug.print("Validation layers inactive\n", .{});
     }
 
     const create_info = vk.InstanceCreateInfo{
@@ -130,6 +142,9 @@ pub fn main() !void {
         defer instance.destroyDebugUtilsMessengerEXT(debug_messenger, null);
     }
 
+    const device_candidate = try pickDevice(allocator, instance);
+    _ = device_candidate;
+
     while (!zglfw.windowShouldClose(window)) {
         zglfw.pollEvents();
     }
@@ -141,7 +156,36 @@ fn debugUtilsMessengerCallback(severity: vk.DebugUtilsMessageSeverityFlagsEXT, m
     const type_str = if (msg_type.general_bit_ext) "general" else if (msg_type.validation_bit_ext) "validation" else if (msg_type.performance_bit_ext) "performance" else if (msg_type.device_address_binding_bit_ext) "device addr" else "unknown";
 
     const message: [*c]const u8 = if (callback_data) |cb_data| cb_data.p_message else "NO MESSAGE!";
-    std.debug.print("[{s}][{s}]\n{s}\n\n", .{ severity_str, type_str, message });
+    std.debug.print("[{s}][{s}]\n{s}\n", .{ severity_str, type_str, message });
 
     return .false;
+}
+
+fn pickDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch)) !DeviceCandidate {
+    const physical_devices = try instance.enumeratePhysicalDevicesAlloc(allocator);
+    defer allocator.free(physical_devices);
+
+    for (physical_devices) |physical_device| {
+        const physical_device_properties = instance.getPhysicalDeviceProperties(physical_device);
+        const physical_device_features = instance.getPhysicalDeviceFeatures(physical_device);
+
+        if ((physical_device_properties.device_type == vk.PhysicalDeviceType.discrete_gpu) & (physical_device_features.geometry_shader == vk.Bool32.true)) {
+            const queue_family_properties = try instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(physical_device, allocator);
+            defer allocator.free(queue_family_properties);
+
+            for (queue_family_properties, 0..) |queue_family_property, i| {
+                const family: u32 = @intCast(i);
+
+                if (!queue_family_property.queue_flags.graphics_bit) continue;
+                return .{
+                    .physical_device = physical_device,
+                    .physical_device_properties = physical_device_properties,
+                    .physical_device_features = physical_device_features,
+                    .graphics_family = family
+                };
+            }
+        }
+    }
+
+    return PhysicalDeviceError.NoSuitablePhysicalDevice;
 }

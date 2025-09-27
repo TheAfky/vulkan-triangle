@@ -16,7 +16,6 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-
     b.installArtifact(exe);
 
     // GLFW c build dependency
@@ -43,7 +42,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .registry = b.path("registry/vk.xml"),
     });
-
     exe.root_module.addImport("vulkan", vulkan.module("vulkan-zig"));
 
     // "zig build run"
