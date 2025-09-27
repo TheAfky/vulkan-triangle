@@ -16,6 +16,10 @@ const LayersError = error{
     MissingValidationLayers,
 };
 
+const SurfaceError = error {
+    SurfaceInitFailed,
+};
+
 const PhysicalDeviceError = error {
     NoSuitablePhysicalDevice,
 };
@@ -29,6 +33,7 @@ const DeviceCandidate = struct {
     physical_device_properties: vk.PhysicalDeviceProperties,
     physical_device_features: vk.PhysicalDeviceFeatures,
     graphics_family: u32,
+    presentation_family: u32,
 };
 
 pub fn main() !void {
@@ -144,7 +149,14 @@ pub fn main() !void {
         defer instance.destroyDebugUtilsMessengerEXT(debug_messenger, null);
     }
 
-    const device_candidate = try pickDevice(allocator, instance);
+    var raw_surface: u64 = 0;
+    if (zglfw.createWindowSurface(@intFromEnum(instance.handle), window, null, &raw_surface) != zglfw.VkResult.success) {
+        return SurfaceError.SurfaceInitFailed;
+    }
+    const surface: vk.SurfaceKHR = @enumFromInt(raw_surface);
+    defer instance.destroySurfaceKHR(surface, null);
+
+    const device_candidate = try pickDevice(allocator, instance, surface);
 
     const priority = [_]f32{1};
     const device_queue_create_info = [_]vk.DeviceQueueCreateInfo{
@@ -175,6 +187,8 @@ pub fn main() !void {
 
     const graphics_queue: vk.Queue = device.getDeviceQueue(device_candidate.graphics_family, 0);
     _ = graphics_queue;
+    const presentation_queue: vk.Queue = device.getDeviceQueue(device_candidate.presentation_family, 0);
+    _ = presentation_queue;
 
 
     while (!zglfw.windowShouldClose(window)) {
@@ -193,7 +207,7 @@ fn debugUtilsMessengerCallback(severity: vk.DebugUtilsMessageSeverityFlagsEXT, m
     return .false;
 }
 
-fn pickDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch)) !DeviceCandidate {
+fn pickDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), surface: vk.SurfaceKHR) !DeviceCandidate {
     const physical_devices = try instance.enumeratePhysicalDevicesAlloc(allocator);
     defer allocator.free(physical_devices);
 
@@ -205,15 +219,26 @@ fn pickDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustom
             const queue_family_properties = try instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(physical_device, allocator);
             defer allocator.free(queue_family_properties);
 
+            var graphics_family: ?u32 = null;
+            var presentation_family: ?u32 = null;
+
             for (queue_family_properties, 0..) |queue_family_property, i| {
                 const family: u32 = @intCast(i);
 
-                if (!queue_family_property.queue_flags.graphics_bit) continue;
+                if (graphics_family == null and queue_family_property.queue_flags.graphics_bit) {
+                    graphics_family = family;
+                }
+
+                if (presentation_family == null and (try instance.getPhysicalDeviceSurfaceSupportKHR(physical_device, family, surface)) == .true) {
+                    presentation_family = family;
+                }
+
                 return .{
                     .physical_device = physical_device,
                     .physical_device_properties = physical_device_properties,
                     .physical_device_features = physical_device_features,
-                    .graphics_family = family
+                    .graphics_family = graphics_family.?,
+                    .presentation_family = presentation_family.?,
                 };
             }
         }
