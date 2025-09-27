@@ -6,6 +6,8 @@ const window_width: u32 = 1080;
 const window_height: u32 = 720;
 const enable_validation_layers: bool = true;
 
+const required_device_extensions = [_][*:0]const u8{};
+
 const ExtensionsError = error{
     MissingGLFWExtensions,
 };
@@ -143,7 +145,37 @@ pub fn main() !void {
     }
 
     const device_candidate = try pickDevice(allocator, instance);
-    _ = device_candidate;
+
+    const priority = [_]f32{1};
+    const device_queue_create_info = [_]vk.DeviceQueueCreateInfo{
+        .{
+            .s_type = vk.StructureType.device_queue_create_info,
+            .queue_family_index = device_candidate.graphics_family,
+            .queue_count = 1,
+            .p_queue_priorities = &priority,
+        }
+    };
+
+    const device_create_info = vk.DeviceCreateInfo{
+        .queue_create_info_count = device_queue_create_info.len,
+        .p_queue_create_infos = &device_queue_create_info,
+        .enabled_extension_count = required_device_extensions.len,
+        .pp_enabled_extension_names = @ptrCast(&required_device_extensions),
+    };
+
+    const raw_device = try instance.createDevice(device_candidate.physical_device, &device_create_info, null);
+
+    const device_wrapper = try allocator.create(vk.DeviceWrapper);
+    defer allocator.destroy(device_wrapper);
+
+    device_wrapper.* = vk.DeviceWrapper.load(raw_device, instance.wrapper.dispatch.vkGetDeviceProcAddr.?);
+
+    var device = vk.DeviceProxy.init(raw_device, device_wrapper);
+    defer device.destroyDevice(null);
+
+    const graphics_queue: vk.Queue = device.getDeviceQueue(device_candidate.graphics_family, 0);
+    _ = graphics_queue;
+
 
     while (!zglfw.windowShouldClose(window)) {
         zglfw.pollEvents();
