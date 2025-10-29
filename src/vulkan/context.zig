@@ -1,8 +1,13 @@
 const std = @import("std");
+
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
-const Instance = @import("instance.zig").Instance;
+
+const Window = @import("../window/window.zig").Window;
 const Device = @import("device.zig").Device;
+const Instance = @import("instance.zig").Instance;
+const Swapchain = @import("swapchain.zig").Swapchain;
+
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
@@ -12,34 +17,30 @@ pub const VulkanContext = struct {
     allocator: std.mem.Allocator,
     base_wrapper: vk.BaseWrapper,
 
-    instance_context: Instance,
-    instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
-    device_context: Device,
-    device: vk.DeviceProxyWithCustomDispatch(vk.DeviceDispatch),
+    window: Window,
+    instance: Instance,
+    device: Device,
     surface: vk.SurfaceKHR,
+    swapchain: Swapchain,
 
-    pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: *zglfw.Window) !Self {
+    pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: Window) !Self {
         var self: Self = undefined;
         self.allocator = allocator;
         self.base_wrapper = vk.BaseWrapper.load(glfwGetInstanceProcAddress);
-
-        // Instance creation
-        self.instance_context = try Instance.init(self.allocator, self.base_wrapper, application_name, engine_name);
-        self.instance = self.instance_context.instance;
-
-        // Surface creation
-        self.surface = try create_surface(self.instance.handle, window);
-
-        // Device creation
-        self.device_context = try Device.init(self.allocator, self.base_wrapper, self.instance, self.surface);
-        self.device = self.device_context.device;
+        self.window = window;
+        
+        self.instance = try Instance.init(self.allocator, self.base_wrapper, application_name, engine_name);
+        self.surface = try create_surface(self.instance.handle.handle, window.handle);
+        self.device = try Device.init(self.allocator, self.base_wrapper, self.instance.handle, self.surface);
+        self.swapchain = try Swapchain.init(self.allocator, self.instance.handle, self.device, self.surface, window.extent);
+        
         return self;
     }
 
     pub fn deinit(self: Self) void {
-        self.device_context.deinit();
-        self.instance.destroySurfaceKHR(self.surface, null);
-        self.instance_context.deinit();
+        self.device.deinit();
+        self.instance.handle.destroySurfaceKHR(self.surface, null);
+        self.instance.deinit();
     }
 };
 

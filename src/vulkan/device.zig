@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
 
@@ -31,7 +32,8 @@ pub const Device = struct {
     allocator: std.mem.Allocator,
     base_wrapper: vk.BaseWrapper,
 
-    device: vk.DeviceProxyWithCustomDispatch(vk.DeviceDispatch),
+    handle: vk.DeviceProxyWithCustomDispatch(vk.DeviceDispatch),
+    physical_device: vk.PhysicalDevice,
     graphics_queue: Queue,
     presentation_queue: Queue,
 
@@ -70,19 +72,20 @@ pub const Device = struct {
 
         const device_wrapper = try allocator.create(vk.DeviceWrapper);
         device_wrapper.* = vk.DeviceWrapper.load(raw_device, instance.wrapper.dispatch.vkGetDeviceProcAddr.?);
+        
+        self.physical_device = device_candidate.physical_device;
+        self.handle = vk.DeviceProxy.init(raw_device, device_wrapper);
 
-        self.device = vk.DeviceProxy.init(raw_device, device_wrapper);
-
-        self.graphics_queue = Queue.init(self.device, device_candidate.graphics_family);
+        self.graphics_queue = Queue.init(self.handle, device_candidate.graphics_family);
         _ = self.graphics_queue;
-        self.presentation_queue = Queue.init(self.device, device_candidate.presentation_family);
+        self.presentation_queue = Queue.init(self.handle, device_candidate.presentation_family);
         _ = self.presentation_queue;
 
         return self;
     }
     pub fn deinit(self: Self) void {
-        self.device.destroyDevice(null);
-        self.allocator.destroy(self.device.wrapper);
+        self.handle.destroyDevice(null);
+        self.allocator.destroy(self.handle.wrapper);
     }
 };
 

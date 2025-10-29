@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
 
@@ -6,7 +7,7 @@ pub const Instance = struct {
     const Self = @This();
 
     allocator: std.mem.Allocator,
-    instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
+    handle: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     debug_messenger: vk.DebugUtilsMessengerEXT = .null_handle,
 
     pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, application_name: [*:0]const u8, engine_name: [*:0]const u8) !Self {
@@ -62,7 +63,7 @@ pub const Instance = struct {
         const instance_wrapper = try self.allocator.create(vk.InstanceWrapper);
         instance_wrapper.* = vk.InstanceWrapper.load(raw_instance, base_wrapper.dispatch.vkGetInstanceProcAddr.?);
 
-        self.instance = vk.InstanceProxy.init(raw_instance, instance_wrapper);
+        self.handle = vk.InstanceProxy.init(raw_instance, instance_wrapper);
 
         if (enabled_validation_layers) {
             const debug_utils_messenger_create_info_ext: vk.DebugUtilsMessengerCreateInfoEXT = .{
@@ -81,15 +82,15 @@ pub const Instance = struct {
                 .p_user_data = null,
             };
 
-            self.debug_messenger = try self.instance.createDebugUtilsMessengerEXT(&debug_utils_messenger_create_info_ext, null);
+            self.debug_messenger = try self.handle.createDebugUtilsMessengerEXT(&debug_utils_messenger_create_info_ext, null);
         }
 
         return self;
     }
     pub fn deinit(self: Self) void {
-        self.instance.destroyDebugUtilsMessengerEXT(self.debug_messenger, null);
-        self.instance.destroyInstance(null);
-        self.allocator.destroy(self.instance.wrapper);
+        self.handle.destroyDebugUtilsMessengerEXT(self.debug_messenger, null);
+        self.handle.destroyInstance(null);
+        self.allocator.destroy(self.handle.wrapper);
     }
 };
 
