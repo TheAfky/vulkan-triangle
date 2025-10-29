@@ -32,12 +32,13 @@ pub const VulkanContext = struct {
         self.instance = try Instance.init(self.allocator, self.base_wrapper, application_name, engine_name);
         self.surface = try create_surface(self.instance.handle.handle, window.handle);
         self.device = try Device.init(self.allocator, self.base_wrapper, self.instance.handle, self.surface);
-        self.swapchain = try Swapchain.init(self.allocator, self.instance.handle, self.device, self.surface, window.extent);
+        self.swapchain = try Swapchain.init(self.allocator, self.instance.handle, self.device, self.surface, window);
         
         return self;
     }
 
     pub fn deinit(self: Self) void {
+        self.swapchain.deinit();
         self.device.deinit();
         self.instance.handle.destroySurfaceKHR(self.surface, null);
         self.instance.deinit();
