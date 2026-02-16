@@ -7,7 +7,7 @@ const Window = @import("../window/window.zig").Window;
 const Device = @import("device.zig").Device;
 const Instance = @import("instance.zig").Instance;
 const Swapchain = @import("swapchain.zig").Swapchain;
-
+const GraphicsPipeline = @import("graphics_pipeline.zig").GraphicsPileline;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
@@ -22,6 +22,7 @@ pub const VulkanContext = struct {
     device: Device,
     surface: vk.SurfaceKHR,
     swapchain: Swapchain,
+    graphics_pipeline: GraphicsPipeline,
 
     pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: Window) !Self {
         var self: Self = undefined;
@@ -33,12 +34,13 @@ pub const VulkanContext = struct {
         self.surface = try create_surface(self.instance.handle.handle, window.handle);
         self.device = try Device.init(self.allocator, self.base_wrapper, self.instance.handle, self.surface);
         self.swapchain = try Swapchain.init(self.allocator, self.instance.handle, self.device, self.surface, window);
-
+        self.graphics_pipeline = try GraphicsPipeline.init(self.device, self.swapchain);
 
         return self;
     }
 
     pub fn deinit(self: Self) void {
+        self.graphics_pipeline.deinit();
         self.swapchain.deinit();
         self.device.deinit();
         self.instance.handle.destroySurfaceKHR(self.surface, null);

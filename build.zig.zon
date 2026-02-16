@@ -23,6 +23,7 @@
         "build.zig.zon",
         "src",
         "registry",
+        "shaders",
         "License",
         "README.md"
     },
