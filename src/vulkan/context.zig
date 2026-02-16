@@ -33,7 +33,8 @@ pub const VulkanContext = struct {
         self.surface = try create_surface(self.instance.handle.handle, window.handle);
         self.device = try Device.init(self.allocator, self.base_wrapper, self.instance.handle, self.surface);
         self.swapchain = try Swapchain.init(self.allocator, self.instance.handle, self.device, self.surface, window);
-        
+
+
         return self;
     }
 

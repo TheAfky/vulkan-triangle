@@ -16,6 +16,8 @@ pub const Swapchain = struct {
     surface_format: vk.SurfaceFormatKHR,
     present_mode: vk.PresentModeKHR,
     handle: vk.SwapchainKHR,
+
+    swapchain_images: []SwapchainImage,
     
     pub fn init(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window) !Self {
         var self: Self = undefined;
@@ -41,9 +43,8 @@ pub const Swapchain = struct {
             .concurrent
         else
             .exclusive;
-        
+
         const create_info = vk.SwapchainCreateInfoKHR{
-            .s_type = vk.StructureType.swapchain_create_info_khr,
             .surface = surface,
             .min_image_count = image_count,
             .image_format = self.surface_format.format,
@@ -62,12 +63,20 @@ pub const Swapchain = struct {
         };
         
         self.handle = try self.device.handle.createSwapchainKHR(&create_info, null);
-        errdefer self.device.destroySwapchainKHR(self.handle, null);
+        errdefer self.device.handle.destroySwapchainKHR(self.handle, null);
+
+        self.swapchain_images = try initSwapchainImages(allocator, self.device, self, self.surface_format.format);
+        errdefer {
+            for (self.swapchain_images) |swapchain_image| swapchain_image.deinit();
+            allocator.free(self.swapchain_images);
+        }
         
         return self;
     }
     
     pub fn deinit(self: Self) void {
+        for (self.swapchain_images) |swapchain_image| swapchain_image.deinit(self.device);
+        self.allocator.free(self.swapchain_images);
         self.device.handle.destroySwapchainKHR(self.handle, null);
     }
 };
@@ -76,19 +85,59 @@ pub const SwapchainImage = struct {
     const Self = @This();
 
     image: vk.Image,
-    
-    pub fn init(image: vk.Image, format: vk.Format) !Self {
+    image_view: vk.ImageView,
+
+    pub fn init(image: vk.Image, device: Device, format: vk.Format) !Self {
         var self: Self = undefined;
-        
+
         self.image = image;
-        _ = format;
-        
+
+        const create_info = vk.ImageViewCreateInfo{
+            .image = image,
+            .view_type = .@"2d",
+            .format = format,
+            .components = .{
+                .r = .identity,
+                .g = .identity,
+                .b = .identity,
+                .a = .identity
+            },
+            .subresource_range = .{
+                .aspect_mask = .{ .color_bit = true },
+                .base_mip_level = 0,
+                .level_count = 1,
+                .base_array_layer = 0,
+                .layer_count = 1,
+            }
+        };
+
+        self.image_view = try device.handle.createImageView(&create_info, null);
+        errdefer device.handle.destroyImageView(self.image_view, null);
+
         return self;
     }
-    pub fn deinit(self: Self) void {
-        _ = self;
+    pub fn deinit(self: Self, device: Device) void {
+        device.handle.destroyImageView(self.image_view, null);
     }
 };
+
+fn initSwapchainImages(allocator: std.mem.Allocator, device: Device, swapchain: Swapchain, format: vk.Format) ![]SwapchainImage {
+    const images = try device.handle.getSwapchainImagesAllocKHR(swapchain.handle, allocator);
+    defer allocator.free(images);
+
+    const swap_images = try allocator.alloc(SwapchainImage, images.len);
+    errdefer allocator.free(swap_images);
+
+    var i: usize = 0;
+    errdefer for (swap_images[0..i]) |swapchan_image| swapchan_image.deinit(device);
+
+    for (images) |image| {
+        swap_images[i] = try SwapchainImage.init(image, device, format);
+        i += 1;
+    }
+
+    return swap_images;
+}
 
 fn findSurfaceFormat(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), surface: vk.SurfaceKHR, device: Device) !vk.SurfaceFormatKHR {
     const surface_formats = try instance.getPhysicalDeviceSurfaceFormatsAllocKHR(device.physical_device, surface, allocator);
