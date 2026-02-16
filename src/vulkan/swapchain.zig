@@ -6,29 +6,35 @@ const Window = @import("../window/window.zig").Window;
 
 pub const Swapchain = struct {
     const Self = @This();
-    
+
     allocator: std.mem.Allocator,
     instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     surface: vk.SurfaceKHR,
+    window: Window,
     device: Device,
-    
+
     extent: vk.Extent2D,
     surface_format: vk.SurfaceFormatKHR,
     present_mode: vk.PresentModeKHR,
     handle: vk.SwapchainKHR,
 
     swapchain_images: []SwapchainImage,
-    
+
     pub fn init(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window) !Self {
+        return try initRecycle(allocator, instance, device, surface, window, .null_handle);
+    }
+
+    pub fn initRecycle(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window, old_handle: vk.SwapchainKHR) !Self {
         var self: Self = undefined;
         self.allocator = allocator;
         self.instance = instance;
         self.surface = surface;
+        self.window = window;
         self.device = device;
-        
+
         const surface_capabilities_khr = try instance.getPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device, surface);
         self.extent = getSurfaceExtent(surface_capabilities_khr, window);
-        
+
         self.surface_format = try findSurfaceFormat(self.allocator, self.instance, self.surface, self.device);
         self.present_mode = try findPresentMode(self.allocator, self.instance, self.surface, self.device);
 
@@ -59,9 +65,9 @@ pub const Swapchain = struct {
             .composite_alpha = .{ .opaque_bit_khr = true },
             .present_mode = self.present_mode,
             .clipped = .true,
-            .old_swapchain = vk.SwapchainKHR.null_handle
+            .old_swapchain = old_handle
         };
-        
+
         self.handle = try self.device.handle.createSwapchainKHR(&create_info, null);
         errdefer self.device.handle.destroySwapchainKHR(self.handle, null);
 
@@ -70,14 +76,39 @@ pub const Swapchain = struct {
             for (self.swapchain_images) |swapchain_image| swapchain_image.deinit();
             allocator.free(self.swapchain_images);
         }
-        
+
         return self;
     }
-    
-    pub fn deinit(self: Self) void {
+
+    fn deinitExceptSwapchain(self: Swapchain) void {
         for (self.swapchain_images) |swapchain_image| swapchain_image.deinit(self.device);
         self.allocator.free(self.swapchain_images);
+    }
+
+    pub fn deinit(self: Self) void {
+        if (self.handle == .null_handle) return;
+        deinitExceptSwapchain(self);
         self.device.handle.destroySwapchainKHR(self.handle, null);
+    }
+
+    pub fn recreate(self: *Swapchain) !void {
+        const allocator = self.allocator;
+        const instance = self.instance;
+        const device = self.device;
+        const surface = self.surface;
+        const window = self.window;
+        const old_handle = self.handle;
+
+        self.deinitExceptSwapchain();
+
+        self.handle = .null_handle;
+        self.* = try initRecycle(allocator, instance, device, surface, window, old_handle) catch |err| switch (err) {
+            error.SwapchainCreationFailed => {
+                device.handle.destroySwapchainKHR(old_handle, null);
+                return err;
+            },
+            else => return err,
+        };
     }
 };
 
