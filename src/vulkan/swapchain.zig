@@ -7,6 +7,11 @@ const Window = @import("../window/window.zig").Window;
 pub const Swapchain = struct {
     const Self = @This();
 
+    pub const PresentState = enum {
+        optimal,
+        suboptimal,
+    };
+
     allocator: std.mem.Allocator,
     instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     surface: vk.SurfaceKHR,
@@ -19,6 +24,9 @@ pub const Swapchain = struct {
     handle: vk.SwapchainKHR,
 
     swapchain_images: []SwapchainImage,
+    image_index: u32,
+    next_image_acquired: vk.Semaphore,
+    state: PresentState = .optimal,
 
     pub fn init(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window) !Self {
         return try initRecycle(allocator, instance, device, surface, window, .null_handle);
@@ -68,14 +76,33 @@ pub const Swapchain = struct {
             .old_swapchain = old_handle
         };
 
-        self.handle = try self.device.handle.createSwapchainKHR(&create_info, null);
+        self.handle = self.device.handle.createSwapchainKHR(&create_info, null) catch {
+            return error.SwapchainCreationFailed;
+        };
         errdefer self.device.handle.destroySwapchainKHR(self.handle, null);
+
+        if (old_handle != .null_handle) {
+            self.device.handle.destroySwapchainKHR(old_handle, null);
+        }
 
         self.swapchain_images = try initSwapchainImages(allocator, self.device, self, self.surface_format.format);
         errdefer {
-            for (self.swapchain_images) |swapchain_image| swapchain_image.deinit();
+            for (self.swapchain_images) |swapchain_image| swapchain_image.deinit(self.device);
             allocator.free(self.swapchain_images);
         }
+
+        self.next_image_acquired = try self.device.handle.createSemaphore(&.{}, null);
+        errdefer self.device.handle.destroySemaphore(self.next_image_acquired, null);
+
+        const result = try self.device.handle.acquireNextImageKHR(self.handle, std.math.maxInt(u64), self.next_image_acquired, .null_handle);
+
+        if (result.result == .not_ready or result.result == .timeout) {
+            return error.ImageAcquireFailed;
+        }
+
+        std.mem.swap(vk.Semaphore, &self.swapchain_images[result.image_index].image_acquired, &self.next_image_acquired);
+
+        self.image_index = result.image_index;
 
         return self;
     }
@@ -83,6 +110,7 @@ pub const Swapchain = struct {
     fn deinitExceptSwapchain(self: Swapchain) void {
         for (self.swapchain_images) |swapchain_image| swapchain_image.deinit(self.device);
         self.allocator.free(self.swapchain_images);
+        self.device.handle.destroySemaphore(self.next_image_acquired, null);
     }
 
     pub fn deinit(self: Self) void {
@@ -99,16 +127,70 @@ pub const Swapchain = struct {
         const window = self.window;
         const old_handle = self.handle;
 
+        try self.device.handle.queueWaitIdle(self.device.presentation_queue.handle);
         self.deinitExceptSwapchain();
 
         self.handle = .null_handle;
-        self.* = try initRecycle(allocator, instance, device, surface, window, old_handle) catch |err| switch (err) {
+        self.* = initRecycle(allocator, instance, device, surface, window, old_handle) catch |err| switch (err) {
             error.SwapchainCreationFailed => {
-                device.handle.destroySwapchainKHR(old_handle, null);
+                self.device.handle.destroySwapchainKHR(old_handle, null);
                 return err;
             },
             else => return err,
         };
+    }
+
+    pub fn currentImage(self: Swapchain) vk.Image {
+        return self.swapchain_images[self.image_index].image;
+    }
+
+    pub fn currentSwapchainImage(self: Swapchain) *const SwapchainImage {
+        return &self.swapchain_images[self.image_index];
+    }
+
+    pub fn present(self: *Self, command_buffer: vk.CommandBuffer) !void {
+        const current_swapchain_image = self.currentSwapchainImage();
+        try current_swapchain_image.waitForFence(self.device);
+        try self.device.handle.resetFences(1, @ptrCast(&current_swapchain_image.frame_fence));
+
+        const wait_stage = [_]vk.PipelineStageFlags{.{ .top_of_pipe_bit = true }};
+        try self.device.handle.queueSubmit(self.device.graphics_queue.handle, 1, &[_]vk.SubmitInfo{.{
+            .wait_semaphore_count = 1,
+            .p_wait_semaphores = @ptrCast(&current_swapchain_image.image_acquired),
+            .p_wait_dst_stage_mask = &wait_stage,
+            .command_buffer_count = 1,
+            .p_command_buffers = @ptrCast(&command_buffer),
+            .signal_semaphore_count = 1,
+            .p_signal_semaphores = @ptrCast(&current_swapchain_image.render_finished),
+        }}, current_swapchain_image.frame_fence);
+
+        _ = try self.device.handle.queuePresentKHR(self.device.presentation_queue.handle, &.{
+            .wait_semaphore_count = 1,
+            .p_wait_semaphores = @ptrCast(&current_swapchain_image.render_finished),
+            .swapchain_count = 1,
+            .p_swapchains = @ptrCast(&self.handle),
+            .p_image_indices = @ptrCast(&self.image_index),
+        });
+
+        const result = try self.device.handle.acquireNextImageKHR(
+            self.handle,
+            std.math.maxInt(u64),
+            self.next_image_acquired,
+            .null_handle,
+        );
+
+        std.mem.swap(vk.Semaphore, &self.swapchain_images[result.image_index].image_acquired, &self.next_image_acquired);
+        self.image_index = result.image_index;
+
+        return switch (result.result) {
+            .success => self.state = .optimal,
+            .suboptimal_khr => self.state = .suboptimal,
+            else => unreachable,
+        };
+    }
+
+    pub fn waitForAllFences(self: Self) !void {
+        for (self.swapchain_images) |swapchain_image| try swapchain_image.waitForFence(self.device);
     }
 };
 
@@ -117,6 +199,9 @@ pub const SwapchainImage = struct {
 
     image: vk.Image,
     image_view: vk.ImageView,
+    image_acquired: vk.Semaphore,
+    render_finished: vk.Semaphore,
+    frame_fence: vk.Fence,
 
     pub fn init(image: vk.Image, device: Device, format: vk.Format) !Self {
         var self: Self = undefined;
@@ -145,10 +230,28 @@ pub const SwapchainImage = struct {
         self.image_view = try device.handle.createImageView(&create_info, null);
         errdefer device.handle.destroyImageView(self.image_view, null);
 
+        self.image_acquired = try device.handle.createSemaphore(&.{}, null);
+        errdefer device.handle.destroySemaphore(self.image_acquired, null);
+
+        self.render_finished = try device.handle.createSemaphore(&.{}, null);
+        errdefer device.handle.destroySemaphore(self.render_finished, null);
+
+        self.frame_fence = try device.handle.createFence(&.{ .flags = .{ .signaled_bit = true } }, null);
+        errdefer device.handle.destroyFence(self.frame_fence, null);
+
         return self;
     }
+
     pub fn deinit(self: Self, device: Device) void {
+        self.waitForFence(device) catch return;
         device.handle.destroyImageView(self.image_view, null);
+        device.handle.destroySemaphore(self.image_acquired, null);
+        device.handle.destroySemaphore(self.render_finished, null);
+        device.handle.destroyFence(self.frame_fence, null);
+    }
+
+    fn waitForFence(self: Self, device: Device) !void {
+        _ = try device.handle.waitForFences(1, @ptrCast(&self.frame_fence), .true, std.math.maxInt(u64));
     }
 };
 

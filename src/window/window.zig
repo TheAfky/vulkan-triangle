@@ -12,7 +12,7 @@ pub const Window = struct {
         
         try zglfw.init();
         zglfw.windowHint(zglfw.ClientAPI, zglfw.NoAPI);
-        zglfw.windowHint(zglfw.Resizable, 0);
+        zglfw.windowHint(zglfw.Resizable, 1);
         
         self.extent = vk.Extent2D{ .width = window_width, .height = window_height };
 
