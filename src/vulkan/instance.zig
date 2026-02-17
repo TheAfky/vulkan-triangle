@@ -9,6 +9,7 @@ pub const Instance = struct {
     allocator: std.mem.Allocator,
     handle: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     debug_messenger: ?vk.DebugUtilsMessengerEXT = null,
+    raw_instance: vk.Instance,
 
     pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, application_name: [*:0]const u8, engine_name: [*:0]const u8) !Self {
         const application_info = vk.ApplicationInfo{
@@ -85,12 +86,14 @@ pub const Instance = struct {
                 .allocator = allocator,
                 .handle = handle,
                 .debug_messenger = debug_messenger,
+                .raw_instance = raw_instance,
             };
         }
 
         return Self{
             .allocator = allocator,
             .handle = handle,
+            .raw_instance = raw_instance,
         };
     }
     pub fn deinit(self: Self) void {

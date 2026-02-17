@@ -3,11 +3,21 @@ const std = @import("std");
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
 
+pub const c = @cImport({
+    @cDefine("GLFW_INCLUDE_VULKAN", "1");
+    @cDefine("GLFW_INCLUDE_NONE", "1");
+    @cInclude("GLFW/glfw3.h");
+    @cInclude("dcimgui.h");
+    @cInclude("backends/dcimgui_impl_glfw.h");
+    @cInclude("backends/dcimgui_impl_vulkan.h");
+});
+
 const Window = @import("../window/window.zig").Window;
 const Device = @import("device.zig").Device;
 const Instance = @import("instance.zig").Instance;
 const Swapchain = @import("swapchain.zig").Swapchain;
 const GraphicsPipeline = @import("graphics_pipeline.zig").GraphicsPileline;
+const Imgui = @import("imgui.zig").Imgui;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
@@ -23,6 +33,9 @@ pub const VulkanContext = struct {
     surface: vk.SurfaceKHR,
     swapchain: Swapchain,
     graphics_pipeline: GraphicsPipeline,
+
+    imgui: Imgui,
+
     framebuffers: []vk.Framebuffer,
     command_pool: vk.CommandPool,
     command_buffers: []vk.CommandBuffer,
@@ -35,9 +48,10 @@ pub const VulkanContext = struct {
         const device = try Device.init(allocator, base_wrapper, instance.handle, surface);
         const swapchain = try Swapchain.init(allocator, instance.handle, device, surface, window);
         const graphics_pipeline = try GraphicsPipeline.init(device, swapchain);
+        const imgui = try Imgui.init(instance, device, swapchain, graphics_pipeline.render_pass, window);
         const framebuffers = try createFramebuffers(allocator, device, swapchain, graphics_pipeline);
         const command_pool = try createCommandPool(device);
-        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool, swapchain, graphics_pipeline);
+        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool, swapchain, graphics_pipeline, imgui);
 
         return Self{
             .allocator = allocator,
@@ -48,6 +62,7 @@ pub const VulkanContext = struct {
             .surface = surface,
             .swapchain = swapchain,
             .graphics_pipeline = graphics_pipeline,
+            .imgui = imgui,
             .framebuffers = framebuffers,
             .command_pool = command_pool,
             .command_buffers = command_buffers,
@@ -61,6 +76,7 @@ pub const VulkanContext = struct {
         destroyCommandBuffers(self.allocator, self.device, self.command_pool, self.command_buffers);
         self.device.handle.destroyCommandPool(self.command_pool, null);
         destroyFramebuffers(self.allocator, self.device, self.framebuffers);
+        self.imgui.deinit();
         self.graphics_pipeline.deinit();
         self.swapchain.deinit();
         self.device.deinit();
@@ -89,17 +105,63 @@ pub const VulkanContext = struct {
             self.command_pool,
             self.swapchain,
             self.graphics_pipeline,
+            self.imgui,
         );
     }
 
-    pub fn drawFrame(self: *Self) !void {
+    pub fn startFrame(self: *Self) !?vk.CommandBuffer {
         var w: c_int = undefined;
         var h: c_int = undefined;
         zglfw.getFramebufferSize(self.window.handle, &w, &h);
 
-        if (w == 0 or h == 0) return;
+        if (w == 0 or h == 0) return null;
 
-        const command_buffer = self.command_buffers[self.swapchain.image_index];
+        const index = self.swapchain.image_index;
+        const command_buffer = self.command_buffers[index];
+
+        _ = self.swapchain.waitForAllFences() catch {};
+
+        self.device.handle.resetCommandBuffer(command_buffer, .{}) catch {};
+        try self.device.handle.beginCommandBuffer(command_buffer, &.{});
+
+        const clear: vk.ClearValue = .{
+            .color = .{ .float_32 = .{ 0.0, 0.0, 0.0, 1.0 } },
+        };
+
+        const framebuffer = self.framebuffers[index];
+        self.device.handle.cmdBeginRenderPass(command_buffer, &.{
+            .render_pass = self.graphics_pipeline.render_pass,
+            .framebuffer = framebuffer,
+            .render_area = .{
+                .offset = .{ .x = 0, .y = 0 },
+                .extent = self.swapchain.extent,
+            },
+            .clear_value_count = 1,
+            .p_clear_values = @ptrCast(&clear)
+        }, .@"inline");
+
+        const viewport = vk.Viewport{
+            .x = 0,
+            .y = 0,
+            .width = @floatFromInt(self.swapchain.extent.width),
+            .height = @floatFromInt(self.swapchain.extent.height),
+            .min_depth = 0.0,
+            .max_depth = 1.0,
+        };
+        const scissor = vk.Rect2D{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = self.swapchain.extent,
+        };
+        self.device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
+        self.device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
+
+        self.device.handle.cmdBindPipeline(command_buffer, .graphics, self.graphics_pipeline.pipeline);
+        return command_buffer;
+    }
+
+    pub fn endFrame(self: *Self, command_buffer: vk.CommandBuffer) !void {
+        self.device.handle.cmdEndRenderPass(command_buffer);
+        try self.device.handle.endCommandBuffer(command_buffer);
 
         _ = self.swapchain.present(command_buffer) catch |err| switch (err) {
             error.OutOfDateKHR => {
@@ -114,6 +176,16 @@ pub const VulkanContext = struct {
         }
     }
 
+    pub fn drawFrame(self: *Self) !void {
+        const command_buffer = try self.startFrame();
+        self.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
+
+        self.imgui.beginFrame();
+        c.ImGui_Text("carzy");
+        self.imgui.endFrame(command_buffer);
+
+        self.endFrame(command_buffer);
+    }
 };
 
 fn createFramebuffers(allocator: std.mem.Allocator, device: Device, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline) ![]vk.Framebuffer {
@@ -147,11 +219,13 @@ fn destroyFramebuffers(allocator: std.mem.Allocator, device: Device, framebuffer
 fn createCommandPool(device: Device) !vk.CommandPool {
     const command_pool = try device.handle.createCommandPool(&.{
         .queue_family_index = device.graphics_queue.family,
+        .flags = .{ .reset_command_buffer_bit = true },
     }, null);
     return command_pool;
 }
 
-fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffers: []vk.Framebuffer, command_pool: vk.CommandPool, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline) ![]vk.CommandBuffer {
+fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffers: []vk.Framebuffer, command_pool: vk.CommandPool, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline, imgui: Imgui) ![]vk.CommandBuffer {
+    _ = imgui;
     const command_buffers = try allocator.alloc(vk.CommandBuffer, framebuffers.len);
     errdefer allocator.free(command_buffers);
 

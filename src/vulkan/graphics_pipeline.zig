@@ -183,13 +183,16 @@ pub const GraphicsPileline = struct {
             .base_pipeline_index = -1,
         };
 
-        _ = try self.device.handle.createGraphicsPipelines(
+        const result = try self.device.handle.createGraphicsPipelines(
             .null_handle,
             1,
             @ptrCast(&graphics_pipeline),
             null,
             @ptrCast(&self.pipeline),
         );
+        if (result != .success) {
+            return error.PipelineCreationFailed;
+        }
 
         return self;
     }

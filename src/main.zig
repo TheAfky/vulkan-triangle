@@ -5,6 +5,10 @@ const vk = @import("vulkan");
 const Window = @import("window/window.zig").Window;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
 
+pub const c = @cImport({
+    @cInclude("dcimgui.h");
+});
+
 const application_name: [*:0]const u8 = "Vulkan Triangle";
 const engine_name: [*:0]const u8 = "Engine";
 const window_width: u32 = 960;
@@ -22,7 +26,14 @@ pub fn main() !void {
     defer vulkan.deinit();
 
     while (!window.shouldClose()) {
-        try vulkan.drawFrame();
         zglfw.pollEvents();
+        const command_buffer = try vulkan.startFrame() orelse continue;
+        vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
+
+        vulkan.imgui.beginFrame();
+        c.ImGui_Text("carzy");
+        vulkan.imgui.endFrame(command_buffer);
+
+        try vulkan.endFrame(command_buffer);
     }
 }

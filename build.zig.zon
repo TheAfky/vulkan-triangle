@@ -1,6 +1,6 @@
 .{
     .name = .vulkan_triangle,
-    .version = "1.0.0",
+    .version = "1.1.0",
     .fingerprint = 0x191a3a4012e6a418,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
@@ -15,6 +15,10 @@
         .glfw_zig = .{
             .url = "git+https://github.com/tiawl/glfw.zig#5072e2f08f3d1f90939dbf9ebd8456577b3b879a",
             .hash = "glfw_zig-1.0.0-NrvYozPSGQDcZZ55GgThpnHTauUKQMelDJIryXu1HL0I",
+        },
+        .cimgui_zig = .{
+            .url = "git+https://github.com/tiawl/cimgui.zig#7d6562db008a060cbaaa1fbf7e12044955d05ffb",
+            .hash = "cimgui_zig-1.0.0-2XubkpuEugBHi-a3OWRxJvma7G6PYawFuzerOq-Xk4JH",
         },
     },
 

@@ -250,7 +250,7 @@ pub const SwapchainImage = struct {
         device.handle.destroyFence(self.frame_fence, null);
     }
 
-    fn waitForFence(self: Self, device: Device) !void {
+    pub fn waitForFence(self: Self, device: Device) !void {
         _ = try device.handle.waitForFences(1, @ptrCast(&self.frame_fence), .true, std.math.maxInt(u64));
     }
 };
