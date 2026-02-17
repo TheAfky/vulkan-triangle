@@ -8,12 +8,9 @@ pub const Instance = struct {
 
     allocator: std.mem.Allocator,
     handle: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
-    debug_messenger: vk.DebugUtilsMessengerEXT = .null_handle,
+    debug_messenger: ?vk.DebugUtilsMessengerEXT = null,
 
     pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, application_name: [*:0]const u8, engine_name: [*:0]const u8) !Self {
-        var self: Self = undefined;
-        self.allocator = allocator;
-
         const application_info = vk.ApplicationInfo{
             .s_type = vk.StructureType.application_info,
             .p_next = null,
@@ -25,27 +22,27 @@ pub const Instance = struct {
         };
 
         var layer_names: std.ArrayList([*:0]const u8) = .empty;
-        defer layer_names.deinit(self.allocator);
+        defer layer_names.deinit(allocator);
         var extension_names: std.ArrayList([*:0]const u8) = .empty;
-        defer extension_names.deinit(self.allocator);
+        defer extension_names.deinit(allocator);
 
         // Validation layers
         var enabled_validation_layers = false;
         if (@import("builtin").mode == std.builtin.OptimizeMode.Debug) {
-            enabled_validation_layers = try enable_validation_layers(self.allocator, base_wrapper, &layer_names);
+            enabled_validation_layers = try enable_validation_layers(allocator, base_wrapper, &layer_names);
             if (enabled_validation_layers)
-                try extension_names.append(self.allocator, vk.extensions.ext_debug_utils.name);
+                try extension_names.append(allocator, vk.extensions.ext_debug_utils.name);
         }
 
         // the following extensions are to support vulkan in mac os
         // see https://github.com/glfw/glfw/issues/2335
-        try extension_names.append(self.allocator, vk.extensions.khr_portability_enumeration.name);
-        try extension_names.append(self.allocator, vk.extensions.khr_get_physical_device_properties_2.name);
+        try extension_names.append(allocator, vk.extensions.khr_portability_enumeration.name);
+        try extension_names.append(allocator, vk.extensions.khr_get_physical_device_properties_2.name);
 
         // GLFW extensions
         var glfw_extensions_count: u32 = 0;
         const glfw_extensions = zglfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return error.MissingGLFWExtensions;
-        try extension_names.appendSlice(self.allocator, @ptrCast(glfw_extensions[0..glfw_extensions_count]));
+        try extension_names.appendSlice(allocator, @ptrCast(glfw_extensions[0..glfw_extensions_count]));
 
         const create_info = vk.InstanceCreateInfo{
             .s_type = vk.StructureType.instance_create_info,
@@ -60,10 +57,10 @@ pub const Instance = struct {
 
         const raw_instance = try base_wrapper.createInstance(&create_info, null);
 
-        const instance_wrapper = try self.allocator.create(vk.InstanceWrapper);
+        const instance_wrapper = try allocator.create(vk.InstanceWrapper);
         instance_wrapper.* = vk.InstanceWrapper.load(raw_instance, base_wrapper.dispatch.vkGetInstanceProcAddr.?);
 
-        self.handle = vk.InstanceProxy.init(raw_instance, instance_wrapper);
+        const handle = vk.InstanceProxy.init(raw_instance, instance_wrapper);
 
         if (enabled_validation_layers) {
             const debug_utils_messenger_create_info_ext: vk.DebugUtilsMessengerCreateInfoEXT = .{
@@ -82,13 +79,23 @@ pub const Instance = struct {
                 .p_user_data = null,
             };
 
-            self.debug_messenger = try self.handle.createDebugUtilsMessengerEXT(&debug_utils_messenger_create_info_ext, null);
+            const debug_messenger = try handle.createDebugUtilsMessengerEXT(&debug_utils_messenger_create_info_ext, null);
+
+            return Self{
+                .allocator = allocator,
+                .handle = handle,
+                .debug_messenger = debug_messenger,
+            };
         }
 
-        return self;
+        return Self{
+            .allocator = allocator,
+            .handle = handle,
+        };
     }
     pub fn deinit(self: Self) void {
-        self.handle.destroyDebugUtilsMessengerEXT(self.debug_messenger, null);
+        if (self.debug_messenger != null)
+            self.handle.destroyDebugUtilsMessengerEXT(self.debug_messenger.?, null);
         self.handle.destroyInstance(null);
         self.allocator.destroy(self.handle.wrapper);
     }

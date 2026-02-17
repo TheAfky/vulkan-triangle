@@ -17,10 +17,10 @@ pub fn main() !void {
     
     const window = try Window.init(window_width, window_height, application_name);
     defer window.deinit();
-    
+
     var vulkan = try VulkanContext.init(allocator, application_name, engine_name, window);
     defer vulkan.deinit();
-    
+
     while (!window.shouldClose()) {
         try vulkan.drawFrame();
         zglfw.pollEvents();

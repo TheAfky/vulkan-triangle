@@ -1,6 +1,6 @@
 .{
     .name = .vulkan_triangle,
-    .version = "0.0.0",
+    .version = "1.0.0",
     .fingerprint = 0x191a3a4012e6a418,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
@@ -13,18 +13,10 @@
             .hash = "zglfw-0.1.0-BghZXTLTAABytkC3hEPF-6wRBQJnMXFQNNNjfE3RuTa2",
         },
         .glfw_zig = .{
-            .url = "git+https://github.com/tiawl/glfw.zig/#c7dee305ad1ab40ca28b65fad2db97ba1302dd84",
-            .hash = "glfw_zig-1.0.0-NrvYo7rXGQALv-OBXFIZlh66opCl5zmqbc0wphQdild_",
+            .url = "git+https://github.com/tiawl/glfw.zig#5072e2f08f3d1f90939dbf9ebd8456577b3b879a",
+            .hash = "glfw_zig-1.0.0-NrvYozPSGQDcZZ55GgThpnHTauUKQMelDJIryXu1HL0I",
         },
     },
 
-    .paths = .{
-        "build.zig",
-        "build.zig.zon",
-        "src",
-        "registry",
-        "shaders",
-        "License",
-        "README.md"
-    },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "registry", "shaders", "License", "README.md" },
 }
