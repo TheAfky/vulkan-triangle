@@ -6,3 +6,6 @@ zig-out/
 # IDE configs
 .idea/
 .vscode/
+
+# Shaders
+*.spv

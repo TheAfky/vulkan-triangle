@@ -18,7 +18,7 @@ pub const Swapchain = struct {
     window: Window,
     device: Device,
 
-    extent: vk.Extent2D,
+    surface_extent: vk.Extent2D,
     surface_format: vk.SurfaceFormatKHR,
     present_mode: vk.PresentModeKHR,
     handle: vk.SwapchainKHR,
@@ -41,7 +41,7 @@ pub const Swapchain = struct {
         self.device = device;
 
         const surface_capabilities_khr = try instance.getPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device, surface);
-        self.extent = getSurfaceExtent(surface_capabilities_khr, window);
+        self.surface_extent = getSurfaceExtent(surface_capabilities_khr, window);
 
         self.surface_format = try findSurfaceFormat(self.allocator, self.instance, self.surface, self.device);
         self.present_mode = try findPresentMode(self.allocator, self.instance, self.surface, self.device);
@@ -63,7 +63,7 @@ pub const Swapchain = struct {
             .min_image_count = image_count,
             .image_format = self.surface_format.format,
             .image_color_space = self.surface_format.color_space,
-            .image_extent = self.extent,
+            .image_extent = self.surface_extent,
             .image_array_layers = 1,
             .image_usage = .{ .color_attachment_bit = true },
             .image_sharing_mode = sharing_mode,

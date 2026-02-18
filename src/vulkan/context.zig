@@ -16,7 +16,7 @@ const Window = @import("../window/window.zig").Window;
 const Device = @import("device.zig").Device;
 const Instance = @import("instance.zig").Instance;
 const Swapchain = @import("swapchain.zig").Swapchain;
-const GraphicsPipeline = @import("graphics_pipeline.zig").GraphicsPileline;
+const GraphicsPipeline = @import("pipeline.zig").GraphicsPileline;
 const Imgui = @import("imgui.zig").Imgui;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
@@ -51,7 +51,7 @@ pub const VulkanContext = struct {
         const imgui = try Imgui.init(instance, device, swapchain, graphics_pipeline.render_pass, window);
         const framebuffers = try createFramebuffers(allocator, device, swapchain, graphics_pipeline);
         const command_pool = try createCommandPool(device);
-        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool, swapchain, graphics_pipeline, imgui);
+        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool);
 
         return Self{
             .allocator = allocator,
@@ -103,9 +103,6 @@ pub const VulkanContext = struct {
             self.device,
             self.framebuffers,
             self.command_pool,
-            self.swapchain,
-            self.graphics_pipeline,
-            self.imgui,
         );
     }
 
@@ -119,7 +116,7 @@ pub const VulkanContext = struct {
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
-        _ = self.swapchain.waitForAllFences() catch {};
+        try self.swapchain.currentSwapchainImage().waitForFence(self.device);
 
         self.device.handle.resetCommandBuffer(command_buffer, .{}) catch {};
         try self.device.handle.beginCommandBuffer(command_buffer, &.{});
@@ -134,7 +131,7 @@ pub const VulkanContext = struct {
             .framebuffer = framebuffer,
             .render_area = .{
                 .offset = .{ .x = 0, .y = 0 },
-                .extent = self.swapchain.extent,
+                .extent = self.swapchain.surface_extent,
             },
             .clear_value_count = 1,
             .p_clear_values = @ptrCast(&clear)
@@ -143,14 +140,14 @@ pub const VulkanContext = struct {
         const viewport = vk.Viewport{
             .x = 0,
             .y = 0,
-            .width = @floatFromInt(self.swapchain.extent.width),
-            .height = @floatFromInt(self.swapchain.extent.height),
+            .width = @floatFromInt(self.swapchain.surface_extent.width),
+            .height = @floatFromInt(self.swapchain.surface_extent.height),
             .min_depth = 0.0,
             .max_depth = 1.0,
         };
         const scissor = vk.Rect2D{
             .offset = .{ .x = 0, .y = 0 },
-            .extent = self.swapchain.extent,
+            .extent = self.swapchain.surface_extent,
         };
         self.device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
         self.device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
@@ -175,17 +172,6 @@ pub const VulkanContext = struct {
             try self.recreateSwapchain();
         }
     }
-
-    pub fn drawFrame(self: *Self) !void {
-        const command_buffer = try self.startFrame();
-        self.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
-
-        self.imgui.beginFrame();
-        c.ImGui_Text("carzy");
-        self.imgui.endFrame(command_buffer);
-
-        self.endFrame(command_buffer);
-    }
 };
 
 fn createFramebuffers(allocator: std.mem.Allocator, device: Device, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline) ![]vk.Framebuffer {
@@ -200,8 +186,8 @@ fn createFramebuffers(allocator: std.mem.Allocator, device: Device, swapchain: S
             .render_pass = graphics_pipeline.render_pass,
             .attachment_count = 1,
             .p_attachments = @ptrCast(&swapchain.swapchain_images[i].image_view),
-            .width = swapchain.extent.width,
-            .height = swapchain.extent.height,
+            .width = swapchain.surface_extent.width,
+            .height = swapchain.surface_extent.height,
             .layers = 1,
         }, null);
         i += 1;
@@ -224,8 +210,7 @@ fn createCommandPool(device: Device) !vk.CommandPool {
     return command_pool;
 }
 
-fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffers: []vk.Framebuffer, command_pool: vk.CommandPool, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline, imgui: Imgui) ![]vk.CommandBuffer {
-    _ = imgui;
+fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffers: []vk.Framebuffer, command_pool: vk.CommandPool) ![]vk.CommandBuffer {
     const command_buffers = try allocator.alloc(vk.CommandBuffer, framebuffers.len);
     errdefer allocator.free(command_buffers);
 
@@ -235,49 +220,6 @@ fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffe
         .command_buffer_count = @intCast(command_buffers.len),
     }, command_buffers.ptr);
     errdefer device.handle.freeCommandBuffers(command_pool, @intCast(command_buffers.len), command_buffers.ptr);
-
-    const clear = vk.ClearValue{
-        .color = .{ .float_32 = .{ 0, 0, 0, 1 } },
-    };
-
-    const viewport = vk.Viewport{
-        .x = 0,
-        .y = 0,
-        .width = @floatFromInt(swapchain.extent.width),
-        .height = @floatFromInt(swapchain.extent.height),
-        .min_depth = 0,
-        .max_depth = 1,
-    };
-
-    const scissor = vk.Rect2D{
-        .offset = .{ .x = 0, .y = 0 },
-        .extent = swapchain.extent,
-    };
-
-    for (command_buffers, framebuffers) |command_buffer, framebuffer| {
-        try device.handle.beginCommandBuffer(command_buffer, &.{});
-
-        device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
-        device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
-
-        device.handle.cmdBeginRenderPass(command_buffer, &.{
-            .render_pass = graphics_pipeline.render_pass,
-            .framebuffer = framebuffer,
-            .render_area = .{
-                .offset = .{ .x = 0, .y = 0 },
-                .extent = swapchain.extent,
-            },
-            .clear_value_count = 1,
-            .p_clear_values = @ptrCast(&clear),
-        }, .@"inline");
-
-        device.handle.cmdBindPipeline(command_buffer, .graphics, graphics_pipeline.pipeline);
-
-        device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
-
-        device.handle.cmdEndRenderPass(command_buffer);
-        try device.handle.endCommandBuffer(command_buffer);
-    }
 
     return command_buffers;
 }

@@ -59,6 +59,27 @@ pub fn build(b: *std.Build) void {
     const cimgui_lib = cimgui_dep.artifact("cimgui");
     exe.linkLibrary(cimgui_lib);
 
+    // Shader compilation
+    const shader_dir = "src/shaders/";
+    const shaders = [_][]const u8{
+        "vert",
+        "frag",
+    };
+
+    inline for (shaders) |shader| {
+        const input = b.path(std.fmt.comptimePrint("{s}/shader.{s}", .{ shader_dir, shader }));
+        const output = b.path(std.fmt.comptimePrint("{s}/{s}.spv", .{ shader_dir, shader }));
+
+        const compile = b.addSystemCommand(&[_][]const u8{
+            "glslc",
+            "-o",
+            output.getPath(b),
+            input.getPath(b),
+        });
+
+        exe.step.dependOn(&compile.step);
+    }
+
     // "zig build run"
     const run_step = b.step("run", "Run the app");
     const run_cmd = b.addRunArtifact(exe);

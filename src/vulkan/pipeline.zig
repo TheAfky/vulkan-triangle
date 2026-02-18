@@ -68,15 +68,15 @@ pub const GraphicsPileline = struct {
         const viewport = vk.Viewport{
             .x = 0,
             .y = 0,
-            .width = @floatFromInt(self.swapchain.extent.width),
-            .height = @floatFromInt(self.swapchain.extent.height),
+            .width = @floatFromInt(self.swapchain.surface_extent.width),
+            .height = @floatFromInt(self.swapchain.surface_extent.height),
             .min_depth = 0,
             .max_depth = 1,
         };
 
         const scissor = vk.Rect2D{
             .offset = .{ .x = 0, .y = 0 },
-            .extent = self.swapchain.extent,
+            .extent = self.swapchain.surface_extent,
         };
 
         const viewport_state = vk.PipelineViewportStateCreateInfo{

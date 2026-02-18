@@ -32,6 +32,10 @@ pub fn main() !void {
 
         vulkan.imgui.beginFrame();
         c.ImGui_Text("carzy");
+        const cliked = c.ImGui_Button("Test");
+        if (cliked)
+            std.debug.print("Button cliked\n", .{});
+
         vulkan.imgui.endFrame(command_buffer);
 
         try vulkan.endFrame(command_buffer);
