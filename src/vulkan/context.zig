@@ -16,10 +16,24 @@ const Window = @import("../window/window.zig").Window;
 const Device = @import("device.zig").Device;
 const Instance = @import("instance.zig").Instance;
 const Swapchain = @import("swapchain.zig").Swapchain;
-const GraphicsPipeline = @import("pipeline.zig").GraphicsPileline;
+const Pipeline = @import("pipeline.zig").Pipeline;
 const Imgui = @import("imgui.zig").Imgui;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
+
+pub fn framebufferResizeCallback(
+    window: *zglfw.Window,
+    width: c_int,
+    height: c_int,
+) callconv(.c) void {
+    if (width <= 0 or height <= 0) return;
+
+    const ctx_ptr = zglfw.getWindowUserPointer(window);
+    if (ctx_ptr == null) return;
+
+    const vulkan_context: *VulkanContext = @ptrCast(@alignCast(ctx_ptr.?));
+    vulkan_context.framebuffer_resized = true;
+}
 
 pub const VulkanContext = struct {
     const Self = @This();
@@ -32,11 +46,12 @@ pub const VulkanContext = struct {
     device: Device,
     surface: vk.SurfaceKHR,
     swapchain: Swapchain,
-    graphics_pipeline: GraphicsPipeline,
+    pipeline: Pipeline,
 
     imgui: Imgui,
 
     framebuffers: []vk.Framebuffer,
+    framebuffer_resized: bool,
     command_pool: vk.CommandPool,
     command_buffers: []vk.CommandBuffer,
 
@@ -44,15 +59,31 @@ pub const VulkanContext = struct {
         const base_wrapper = vk.BaseWrapper.load(glfwGetInstanceProcAddress);
 
         const instance = try Instance.init(allocator, base_wrapper, application_name, engine_name);
-        const surface = try createSurface(instance.handle.handle, window.handle);
-        const device = try Device.init(allocator, base_wrapper, instance.handle, surface);
-        const swapchain = try Swapchain.init(allocator, instance.handle, device, surface, window);
-        const graphics_pipeline = try GraphicsPipeline.init(device, swapchain);
-        const imgui = try Imgui.init(instance, device, swapchain, graphics_pipeline.render_pass, window);
-        const framebuffers = try createFramebuffers(allocator, device, swapchain, graphics_pipeline);
-        const command_pool = try createCommandPool(device);
-        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool);
+        errdefer instance.deinit();
 
+        const surface = try createSurface(instance.handle.handle, window.handle);
+
+        const device = try Device.init(allocator, base_wrapper, instance.handle, surface);
+        errdefer device.deinit();
+
+        const swapchain = try Swapchain.init(allocator, instance.handle, device, surface, window);
+        errdefer swapchain.deinit();
+
+        const pipeline = try Pipeline.init(device, swapchain);
+        errdefer pipeline.deinit();
+
+        const imgui = try Imgui.init(instance, device, swapchain, pipeline.render_pass, window);
+        errdefer imgui.deinit();
+
+        const framebuffers = try createFramebuffers(allocator, device, swapchain, pipeline);
+        errdefer destroyFramebuffers(allocator, device, framebuffers);
+
+        const command_pool = try createCommandPool(device);
+        errdefer device.handle.destroyCommandPool(command_pool, null);
+
+        const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool);
+        errdefer destroyCommandBuffers(allocator, device, command_pool, command_buffers);
+        
         return Self{
             .allocator = allocator,
             .base_wrapper = base_wrapper,
@@ -61,11 +92,12 @@ pub const VulkanContext = struct {
             .device = device,
             .surface = surface,
             .swapchain = swapchain,
-            .graphics_pipeline = graphics_pipeline,
+            .pipeline = pipeline,
             .imgui = imgui,
             .framebuffers = framebuffers,
             .command_pool = command_pool,
             .command_buffers = command_buffers,
+            .framebuffer_resized = false,
         };
     }
 
@@ -77,7 +109,7 @@ pub const VulkanContext = struct {
         self.device.handle.destroyCommandPool(self.command_pool, null);
         destroyFramebuffers(self.allocator, self.device, self.framebuffers);
         self.imgui.deinit();
-        self.graphics_pipeline.deinit();
+        self.pipeline.deinit();
         self.swapchain.deinit();
         self.device.deinit();
         self.instance.handle.destroySurfaceKHR(self.surface, null);
@@ -94,7 +126,7 @@ pub const VulkanContext = struct {
             self.allocator,
             self.device,
             self.swapchain,
-            self.graphics_pipeline,
+            self.pipeline,
         );
 
         destroyCommandBuffers(self.allocator, self.device, self.command_pool, self.command_buffers);
@@ -104,19 +136,23 @@ pub const VulkanContext = struct {
             self.framebuffers,
             self.command_pool,
         );
+
+        std.debug.print("W: {}, H: {}\n", .{ self.swapchain.surface_extent.width, self.swapchain.surface_extent.height });
     }
 
     pub fn startFrame(self: *Self) !?vk.CommandBuffer {
-        var w: c_int = undefined;
-        var h: c_int = undefined;
-        zglfw.getFramebufferSize(self.window.handle, &w, &h);
-
-        if (w == 0 or h == 0) return null;
+        if (self.window.isMinimized()) return null;
 
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
         try self.swapchain.currentSwapchainImage().waitForFence(self.device);
+
+        if (self.framebuffer_resized) {
+            self.framebuffer_resized = false;
+            try self.recreateSwapchain();
+            return null;
+        }
 
         self.device.handle.resetCommandBuffer(command_buffer, .{}) catch {};
         try self.device.handle.beginCommandBuffer(command_buffer, &.{});
@@ -126,16 +162,10 @@ pub const VulkanContext = struct {
         };
 
         const framebuffer = self.framebuffers[index];
-        self.device.handle.cmdBeginRenderPass(command_buffer, &.{
-            .render_pass = self.graphics_pipeline.render_pass,
-            .framebuffer = framebuffer,
-            .render_area = .{
-                .offset = .{ .x = 0, .y = 0 },
-                .extent = self.swapchain.surface_extent,
-            },
-            .clear_value_count = 1,
-            .p_clear_values = @ptrCast(&clear)
-        }, .@"inline");
+        self.device.handle.cmdBeginRenderPass(command_buffer, &.{ .render_pass = self.pipeline.render_pass, .framebuffer = framebuffer, .render_area = .{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = self.swapchain.surface_extent,
+        }, .clear_value_count = 1, .p_clear_values = @ptrCast(&clear) }, .@"inline");
 
         const viewport = vk.Viewport{
             .x = 0,
@@ -145,14 +175,17 @@ pub const VulkanContext = struct {
             .min_depth = 0.0,
             .max_depth = 1.0,
         };
+
         const scissor = vk.Rect2D{
             .offset = .{ .x = 0, .y = 0 },
             .extent = self.swapchain.surface_extent,
         };
+
         self.device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
         self.device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
 
-        self.device.handle.cmdBindPipeline(command_buffer, .graphics, self.graphics_pipeline.pipeline);
+        self.device.handle.cmdBindPipeline(command_buffer, .graphics, self.pipeline.pipeline);
+
         return command_buffer;
     }
 
@@ -163,7 +196,6 @@ pub const VulkanContext = struct {
         _ = self.swapchain.present(command_buffer) catch |err| switch (err) {
             error.OutOfDateKHR => {
                 try self.recreateSwapchain();
-                return;
             },
             else => |e| return e,
         };
@@ -174,7 +206,7 @@ pub const VulkanContext = struct {
     }
 };
 
-fn createFramebuffers(allocator: std.mem.Allocator, device: Device, swapchain: Swapchain, graphics_pipeline: GraphicsPipeline) ![]vk.Framebuffer {
+fn createFramebuffers(allocator: std.mem.Allocator, device: Device, swapchain: Swapchain, graphics_pipeline: Pipeline) ![]vk.Framebuffer {
     const framebuffers = try allocator.alloc(vk.Framebuffer, swapchain.swapchain_images.len);
     errdefer allocator.free(framebuffers);
 
@@ -232,7 +264,7 @@ fn destroyCommandBuffers(allocator: std.mem.Allocator, device: Device, command_p
 fn createSurface(raw_instance: vk.Instance, window: *zglfw.Window) !vk.SurfaceKHR {
     var raw_surface: u64 = 0;
     if (zglfw.createWindowSurface(@intFromEnum(raw_instance), window, null, &raw_surface) != zglfw.VkResult.success) {
-        return error.SurfaceInitFailed;
+        return error.SurfaceCreationFailed;
     }
     return @enumFromInt(raw_surface);
 }

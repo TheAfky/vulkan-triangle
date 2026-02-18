@@ -41,7 +41,7 @@ pub const Swapchain = struct {
         self.device = device;
 
         const surface_capabilities_khr = try instance.getPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device, surface);
-        self.surface_extent = getSurfaceExtent(surface_capabilities_khr, window);
+        self.surface_extent = window.getSurfaceExtent(surface_capabilities_khr);
 
         self.surface_format = try findSurfaceFormat(self.allocator, self.instance, self.surface, self.device);
         self.present_mode = try findPresentMode(self.allocator, self.instance, self.surface, self.device);
@@ -304,16 +304,4 @@ fn findPresentMode(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithC
     }
 
     return .fifo_khr;
-}
-
-fn getSurfaceExtent(surface_capabilities: vk.SurfaceCapabilitiesKHR, window: Window) vk.Extent2D {
-    // if not 0xFFFF_FFFF limit the size of the surface
-    if (surface_capabilities.current_extent.width != 0xFFFF_FFFF) {
-        return surface_capabilities.current_extent;
-    } else {
-        return .{
-            .width = std.math.clamp(window.extent.width, surface_capabilities.min_image_extent.width, surface_capabilities.max_image_extent.width),
-            .height = std.math.clamp(window.extent.height, surface_capabilities.min_image_extent.height, surface_capabilities.max_image_extent.height),
-        };
-    }
 }

@@ -6,7 +6,7 @@ const Swapchain = @import("swapchain.zig").Swapchain;
 const vert_spv align(@alignOf(u32)) = @embedFile("../shaders/vert.spv").*;
 const frag_spv align(@alignOf(u32)) = @embedFile("../shaders/frag.spv").*;
 
-pub const GraphicsPileline = struct {
+pub const Pipeline = struct {
     const Self = @This();
 
     device: Device,
@@ -65,25 +65,11 @@ pub const GraphicsPileline = struct {
             .primitive_restart_enable = .false,
         };
 
-        const viewport = vk.Viewport{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(self.swapchain.surface_extent.width),
-            .height = @floatFromInt(self.swapchain.surface_extent.height),
-            .min_depth = 0,
-            .max_depth = 1,
-        };
-
-        const scissor = vk.Rect2D{
-            .offset = .{ .x = 0, .y = 0 },
-            .extent = self.swapchain.surface_extent,
-        };
-
         const viewport_state = vk.PipelineViewportStateCreateInfo{
             .viewport_count = 1,
-            .p_viewports = @ptrCast(&viewport),
+            .p_viewports = null,
             .scissor_count = 1,
-            .p_scissors = @ptrCast(&scissor),
+            .p_scissors = null,
         };
 
         const rasterizer = vk.PipelineRasterizationStateCreateInfo{

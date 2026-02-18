@@ -28,6 +28,7 @@ fn imguiLoader(name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) c.PFN_vk
 pub const Imgui = struct {
     const Self = @This();
 
+    io: [*c]c.ImGuiIO,
     device: Device,
     descriptor_pool: vk.DescriptorPool,
 
@@ -76,6 +77,7 @@ pub const Imgui = struct {
 
         _ = c.cImGui_ImplVulkan_Init(&init_info);
         return Self{
+            .io = io,
             .device = device,
             .descriptor_pool = descriptor_pool,
         };
@@ -95,7 +97,7 @@ pub const Imgui = struct {
         c.cImGui_ImplVulkan_RenderDrawData(draw_data, @ptrFromInt(@intFromEnum(command_buffer)));
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         c.cImGui_ImplVulkan_Shutdown();
         c.cImGui_ImplGlfw_Shutdown();
         c.ImGui_DestroyContext(null);
