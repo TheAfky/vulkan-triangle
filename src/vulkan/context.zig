@@ -136,8 +136,6 @@ pub const VulkanContext = struct {
             self.framebuffers,
             self.command_pool,
         );
-
-        std.debug.print("W: {}, H: {}\n", .{ self.swapchain.surface_extent.width, self.swapchain.surface_extent.height });
     }
 
     pub fn startFrame(self: *Self) !?vk.CommandBuffer {
