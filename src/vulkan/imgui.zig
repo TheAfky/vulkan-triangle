@@ -33,8 +33,9 @@ pub const Imgui = struct {
 
     pub fn init(instance: Instance, device: Device, swapchain: Swapchain, render_pass: vk.RenderPass, window: Window) !Self {
         _ = c.ImGui_CreateContext(null);
-        // const io = c.ImGui_GetIO();
+        const io = c.ImGui_GetIO();
         // io.*.ConfigFlags |= cimgui.ImGuiConfigFlags_DockingEnable;
+        io.*.IniFilename = null;
 
         const pool_sizes = [_]vk.DescriptorPoolSize{
             .{ .type = .sampler, .descriptor_count = 1000 },

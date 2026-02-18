@@ -27,14 +27,16 @@ pub fn main() !void {
 
     while (!window.shouldClose()) {
         zglfw.pollEvents();
+        zglfw.waitEventsTimeout(0.005);
+
         const command_buffer = try vulkan.startFrame() orelse continue;
         vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
 
         vulkan.imgui.beginFrame();
         c.ImGui_Text("carzy");
-        const cliked = c.ImGui_Button("Test");
-        if (cliked)
-            std.debug.print("Button cliked\n", .{});
+        const clicked = c.ImGui_Button("Test");
+        if (clicked)
+            std.debug.print("Button clicked\n", .{});
 
         vulkan.imgui.endFrame(command_buffer);
 

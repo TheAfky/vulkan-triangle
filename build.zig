@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .platforms = &[_]Platform{.GLFW},
         .renderers = &[_]Renderer{.Vulkan},
+        // .docking = true,
     });
     const cimgui_lib = cimgui_dep.artifact("cimgui");
     exe.linkLibrary(cimgui_lib);
