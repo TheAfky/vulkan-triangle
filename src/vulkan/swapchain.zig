@@ -103,6 +103,7 @@ pub const Swapchain = struct {
         std.mem.swap(vk.Semaphore, &self.swapchain_images[result.image_index].image_acquired, &self.next_image_acquired);
 
         self.image_index = result.image_index;
+        self.state = .optimal;
 
         return self;
     }
