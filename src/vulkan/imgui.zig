@@ -35,7 +35,6 @@ pub const Imgui = struct {
     pub fn init(instance: Instance, device: Device, swapchain: Swapchain, render_pass: vk.RenderPass, window: Window) !Self {
         _ = c.ImGui_CreateContext(null);
         const io = c.ImGui_GetIO();
-        // io.*.ConfigFlags |= cimgui.ImGuiConfigFlags_DockingEnable;
         io.*.IniFilename = null;
 
         const pool_sizes = [_]vk.DescriptorPoolSize{
@@ -76,6 +75,13 @@ pub const Imgui = struct {
             return error.ImGuiVulkanLoadFailure;
 
         _ = c.cImGui_ImplVulkan_Init(&init_info);
+        c.ImGui_StyleColorsClassic(null);
+
+        const style = c.ImGui_GetStyle();
+
+        style.*.FontScaleDpi = 1.5;
+        c.ImGuiStyle_ScaleAllSizes(style, 1.5);
+
         return Self{
             .io = io,
             .device = device,

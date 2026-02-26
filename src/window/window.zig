@@ -2,6 +2,8 @@ const std = @import("std");
 const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
+const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
+
 pub const WindowError = error{
     WindowCreationFailed,
 };
@@ -62,8 +64,10 @@ pub const Window = struct {
 
     pub fn setWindowSizeCallback(
         self: Window,
+        vulkan: *VulkanContext,
         callback: *const fn (window: *zglfw.Window, width: c_int, height: c_int) callconv(.c) void,
     ) void {
+        zglfw.setWindowUserPointer(self.handle, vulkan);
         _ = zglfw.setWindowSizeCallback(self.handle, callback);
     }
 };

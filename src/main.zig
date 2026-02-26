@@ -29,21 +29,24 @@ pub fn main() !void {
     var vulkan = try VulkanContext.init(allocator, application_name, engine_name, window);
     defer vulkan.deinit();
 
-    zglfw.setWindowUserPointer(window.handle, &vulkan);
-    window.setWindowSizeCallback(framebufferResizeCallback);
+    window.setWindowSizeCallback(&vulkan, framebufferResizeCallback);
 
+    var draw_trinagle = false;
     while (!window.shouldClose()) {
         zglfw.waitEventsTimeout(0.001);
 
         const command_buffer = try vulkan.startFrame() orelse continue;
-        vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
 
         vulkan.imgui.beginFrame();
-        c.ImGui_Text("carzy");
-        const clicked = c.ImGui_Button("Test");
-        if (clicked)
-            std.debug.print("Button clicked\n", .{});
+        c.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
+        _ = c.ImGui_Begin("Main", 1, c.ImGuiWindowFlags_NoDecoration | c.ImGuiWindowFlags_NoMove | c.ImGuiWindowFlags_NoBackground);
+        c.ImGui_Text("Carzy Triangle");
+        if(c.ImGui_Button(if (draw_trinagle) "Hide triangle" else "Show triangle")) draw_trinagle = !draw_trinagle;
 
+        if (draw_trinagle)
+            vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
+
+        c.ImGui_End();
         vulkan.imgui.endFrame(command_buffer);
 
         try vulkan.endFrame(command_buffer);
