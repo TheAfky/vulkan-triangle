@@ -102,6 +102,8 @@ pub const Imgui = struct {
     }
 
     pub fn deinit(self: Self) void {
+        self.device.handle.deviceWaitIdle() catch {};
+
         c.cImGui_ImplVulkan_Shutdown();
         c.cImGui_ImplGlfw_Shutdown();
         c.ImGui_DestroyContext(null);

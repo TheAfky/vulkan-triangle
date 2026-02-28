@@ -87,7 +87,6 @@ pub const VulkanContext = struct {
         destroyCommandBuffers(self.allocator, self.device, self.command_pool, self.command_buffers);
         self.device.handle.destroyCommandPool(self.command_pool, null);
         destroyFramebuffers(self.allocator, self.device, self.framebuffers);
-        self.imgui.deinit();
         self.pipeline.deinit();
         self.swapchain.deinit();
         self.device.deinit();
