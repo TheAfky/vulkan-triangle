@@ -15,7 +15,7 @@ pub const Swapchain = struct {
     allocator: std.mem.Allocator,
     instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     surface: vk.SurfaceKHR,
-    window: Window,
+    window: *Window,
     device: Device,
 
     surface_extent: vk.Extent2D,
@@ -28,11 +28,11 @@ pub const Swapchain = struct {
     next_image_acquired: vk.Semaphore,
     state: PresentState = .optimal,
 
-    pub fn init(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window) !Self {
+    pub fn init(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: *Window) !Self {
         return try initRecycle(allocator, instance, device, surface, window, .null_handle);
     }
 
-    pub fn initRecycle(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: Window, old_handle: vk.SwapchainKHR) !Self {
+    pub fn initRecycle(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), device: Device, surface: vk.SurfaceKHR, window: *Window, old_handle: vk.SwapchainKHR) !Self {
         var self: Self = undefined;
         self.allocator = allocator;
         self.instance = instance;

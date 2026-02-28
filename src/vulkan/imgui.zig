@@ -32,7 +32,7 @@ pub const Imgui = struct {
     device: Device,
     descriptor_pool: vk.DescriptorPool,
 
-    pub fn init(instance: Instance, device: Device, swapchain: Swapchain, render_pass: vk.RenderPass, window: Window) !Self {
+    pub fn init(instance: Instance, device: Device, swapchain: Swapchain, render_pass: vk.RenderPass, window: *Window) !Self {
         _ = c.ImGui_CreateContext(null);
         const io = c.ImGui_GetIO();
         io.*.IniFilename = null;
@@ -52,7 +52,7 @@ pub const Imgui = struct {
             .p_pool_sizes = &pool_sizes
         }, null);
 
-        _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.handle), true);
+        _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.Glfw.handle), true);
 
         const api_version: u32 =
             (@as(u32, vk.API_VERSION_1_3.major) << 22) |

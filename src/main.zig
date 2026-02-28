@@ -3,15 +3,13 @@ const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
 const Window = @import("window/window.zig").Window;
+const WindowBackend = @import("window/window.zig").WindowBackend;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
-const framebufferResizeCallback = @import("vulkan//context.zig").framebufferResizeCallback;
 
-pub const c = @cImport({
-    @cInclude("dcimgui.h");
-});
+pub const c = @cImport({ @cInclude("dcimgui.h"); });
 
-const application_name: [*:0]const u8 = "Vulkan Triangle";
-const engine_name: [*:0]const u8 = "Engine";
+const application_name = "Vulkan Triangle";
+const engine_name = "Engine";
 const window_width: u32 = 960;
 const window_height: u32 = 640;
 
@@ -23,17 +21,17 @@ pub fn main() !void {
     try zglfw.init();
     defer zglfw.terminate();
 
-    const window = try Window.init(window_width, window_height, application_name);
+    var window = try Window.init(WindowBackend.Glfw, window_width, window_height, application_name);
+    window.registerCallbacks();
     defer window.deinit();
 
-    var vulkan = try VulkanContext.init(allocator, application_name, engine_name, window);
+    var vulkan = try VulkanContext.init(allocator, application_name, engine_name, &window);
     defer vulkan.deinit();
-
-    window.setWindowSizeCallback(&vulkan, framebufferResizeCallback);
 
     var draw_trinagle = false;
     while (!window.shouldClose()) {
-        zglfw.waitEventsTimeout(0.001);
+        if (window.isMinimized()) continue;
+        window.pollEvents();
 
         const command_buffer = try vulkan.startFrame() orelse continue;
 

@@ -1,6 +1,6 @@
 .{
     .name = .vulkan_triangle,
-    .version = "1.1.0",
+    .version = "1.2.0",
     .fingerprint = 0x191a3a4012e6a418,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{

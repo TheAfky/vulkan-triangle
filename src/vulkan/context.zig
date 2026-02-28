@@ -21,27 +21,13 @@ const Imgui = @import("imgui.zig").Imgui;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
-pub fn framebufferResizeCallback(
-    window: *zglfw.Window,
-    width: c_int,
-    height: c_int,
-) callconv(.c) void {
-    if (width <= 0 or height <= 0) return;
-
-    const ctx_ptr = zglfw.getWindowUserPointer(window);
-    if (ctx_ptr == null) return;
-
-    const vulkan_context: *VulkanContext = @ptrCast(@alignCast(ctx_ptr.?));
-    vulkan_context.framebuffer_resized = true;
-}
-
 pub const VulkanContext = struct {
     const Self = @This();
 
     allocator: std.mem.Allocator,
     base_wrapper: vk.BaseWrapper,
 
-    window: Window,
+    window: *Window,
     instance: Instance,
     device: Device,
     surface: vk.SurfaceKHR,
@@ -55,13 +41,13 @@ pub const VulkanContext = struct {
     command_pool: vk.CommandPool,
     command_buffers: []vk.CommandBuffer,
 
-    pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: Window) !Self {
+    pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: *Window) !Self {
         const base_wrapper = vk.BaseWrapper.load(glfwGetInstanceProcAddress);
 
         const instance = try Instance.init(allocator, base_wrapper, application_name, engine_name);
         errdefer instance.deinit();
 
-        const surface = try createSurface(instance.handle.handle, window.handle);
+        const surface = try window.createVulkanSurface(instance.handle.handle);
 
         const device = try Device.init(allocator, base_wrapper, instance.handle, surface);
         errdefer device.deinit();
@@ -139,15 +125,12 @@ pub const VulkanContext = struct {
     }
 
     pub fn startFrame(self: *Self) !?vk.CommandBuffer {
-        if (self.window.isMinimized()) return null;
-
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
         try self.swapchain.currentSwapchainImage().waitForFence(self.device);
 
-        if (self.framebuffer_resized) {
-            self.framebuffer_resized = false;
+        if (self.window.consumeResize()) {
             try self.recreateSwapchain();
             return null;
         }
@@ -257,12 +240,4 @@ fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffe
 fn destroyCommandBuffers(allocator: std.mem.Allocator, device: Device, command_pool: vk.CommandPool, command_buffers: []vk.CommandBuffer) void {
     device.handle.freeCommandBuffers(command_pool, @intCast(command_buffers.len), command_buffers.ptr);
     allocator.free(command_buffers);
-}
-
-fn createSurface(raw_instance: vk.Instance, window: *zglfw.Window) !vk.SurfaceKHR {
-    var raw_surface: u64 = 0;
-    if (zglfw.createWindowSurface(@intFromEnum(raw_instance), window, null, &raw_surface) != zglfw.VkResult.success) {
-        return error.SurfaceCreationFailed;
-    }
-    return @enumFromInt(raw_surface);
 }

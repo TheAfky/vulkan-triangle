@@ -2,72 +2,84 @@ const std = @import("std");
 const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
-const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
+const GlfwWindow = @import("platform/zglfw.zig").GlfwWindow;
 
 pub const WindowError = error{
     WindowCreationFailed,
+    SurfaceCreationFailed
 };
 
-pub const Window = struct {
+pub const FramebufferSize = struct {
+    width: u32,
+    height: u32,
+};
+
+pub const WindowBackend = enum {
+    Glfw
+};
+
+pub const Window = union(enum) {
     const Self = @This();
 
-    handle: *zglfw.Window,
+    Glfw: GlfwWindow,
 
-    pub fn init(window_width: u32, window_height: u32, application_name: [*:0]const u8) !Self {
-        zglfw.windowHint(zglfw.ClientAPI, zglfw.NoAPI);
-        zglfw.windowHint(zglfw.Resizable, 1);
-
-        const handle = zglfw.createWindow(
-            @intCast(window_width),
-            @intCast(window_height),
-            application_name,
-            null, null
-        ) catch return WindowError.WindowCreationFailed;
-
-        return Self{
-            .handle = handle,
+    pub fn init(comptime backend: WindowBackend, width: u32, height: u32, title: []const u8) !Self {
+        return switch (backend) {
+            .Glfw => .{ .Glfw = try GlfwWindow.init(width, height, title) },
         };
     }
-    
+
     pub fn deinit(self: Self) void {
-        zglfw.destroyWindow(self.handle);
-    }
-
-    pub fn isMinimized(self: Self) bool {
-        var width: c_int = 0;
-        var height: c_int = 0;
-        zglfw.getFramebufferSize(self.handle, &width, &height);
-        return width <= 0 and height <= 0;
-    }
-
-    pub fn getSurfaceExtent(self: Self, surface_capabilities: vk.SurfaceCapabilitiesKHR) vk.Extent2D {
-        // if not 0xFFFF_FFFF limit the size of the surface
-        if (surface_capabilities.current_extent.width != 0xFFFF_FFFF) {
-            return surface_capabilities.current_extent;
-        } else {
-            var width: c_int = 0;
-            var height: c_int = 0;
-            zglfw.getFramebufferSize(self.handle, &width, &height);
-
-            const w: u32 = @intCast(width);
-            const h: u32 = @intCast(height);
-            return .{
-                .width = std.math.clamp(w, surface_capabilities.min_image_extent.width, surface_capabilities.max_image_extent.width),
-                .height = std.math.clamp(h, surface_capabilities.min_image_extent.height, surface_capabilities.max_image_extent.height),
-            };
+        switch (self) {
+            .Glfw => |w| w.deinit(),
         }
     }
 
-    pub fn shouldClose(self: Self) bool {
-        return zglfw.windowShouldClose(self.handle);
+    pub fn registerCallbacks(self: *Self) void {
+        return switch (self.*) {
+            .Glfw => self.Glfw.registerCallbacks()
+        };
     }
 
-    pub fn setWindowSizeCallback(
-        self: Window,
-        vulkan: *VulkanContext,
-        callback: *const fn (window: *zglfw.Window, width: c_int, height: c_int) callconv(.c) void,
-    ) void {
-        zglfw.setWindowUserPointer(self.handle, vulkan);
-        _ = zglfw.setWindowSizeCallback(self.handle, callback);
+    pub fn getFramebufferSize(self: Self) FramebufferSize {
+        return switch (self) {
+            .Glfw => |w| w.getFramebufferSize(),
+        };
+    }
+
+    pub fn isMinimized(self: Self) bool {
+        return switch (self) {
+            .Glfw => |w| w.isMinimized(),
+        };
+    }
+
+    pub fn shouldClose(self: Self) bool {
+        return switch (self) {
+            .Glfw => |w| w.shouldClose(),
+        };
+    }
+
+    pub fn consumeResize(self: *Self) bool {
+        return switch (self.*) {
+            .Glfw => self.Glfw.consumeResize()
+        };
+    }
+
+    pub fn pollEvents(self: Self) void {
+        switch (self) {
+            .Glfw => |w| w.pollEvents(),
+        }
+    }
+
+    pub fn createVulkanSurface(self: Self, instance: vk.Instance) !vk.SurfaceKHR {
+        return switch (self) {
+            .Glfw => |w| w.createVulkanSurface(instance),
+        };
+    }
+
+    pub fn getSurfaceExtent(self: Self, surface_capabilities: vk.SurfaceCapabilitiesKHR) vk.Extent2D {
+        return switch (self) {
+            .Glfw => |w| w.getSurfaceExtent(surface_capabilities),
+        };
     }
 };
