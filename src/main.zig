@@ -5,6 +5,7 @@ const vk = @import("vulkan");
 const Window = @import("window/window.zig").Window;
 const WindowBackend = @import("window/window.zig").WindowBackend;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
+const ImGui = @import("ui/imgui.zig").Imgui;
 
 pub const c = @cImport({ @cInclude("dcimgui.h"); });
 
@@ -28,14 +29,17 @@ pub fn main() !void {
     var vulkan = try VulkanContext.init(allocator, application_name, engine_name, &window);
     defer vulkan.deinit();
 
+    var imgui = try ImGui.init(vulkan, &window);
+    defer imgui.deinit();
+
     var draw_trinagle = false;
     while (!window.shouldClose()) {
         if (window.isMinimized()) continue;
         window.pollEvents();
 
-        const command_buffer = try vulkan.startFrame() orelse continue;
+        const command_buffer = try vulkan.beginFrame() orelse continue;
 
-        vulkan.imgui.beginFrame();
+        imgui.beginFrame();
         c.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
         _ = c.ImGui_Begin("Main", 1, c.ImGuiWindowFlags_NoDecoration | c.ImGuiWindowFlags_NoMove | c.ImGuiWindowFlags_NoBackground);
         c.ImGui_Text("Carzy Triangle");
@@ -45,7 +49,7 @@ pub fn main() !void {
             vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
 
         c.ImGui_End();
-        vulkan.imgui.endFrame(command_buffer);
+        imgui.endFrame(command_buffer);
 
         try vulkan.endFrame(command_buffer);
     }

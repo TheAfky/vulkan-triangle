@@ -1,6 +1,7 @@
 const std = @import("std");
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
+const vulkan = @import("../vulkan/context.zig");
 
 pub const c = @cImport({
     @cDefine("GLFW_INCLUDE_VULKAN", "1");
@@ -11,9 +12,6 @@ pub const c = @cImport({
     @cInclude("backends/dcimgui_impl_vulkan.h");
 });
 
-const Instance = @import("instance.zig").Instance;
-const Device = @import("device.zig").Device;
-const Swapchain = @import("swapchain.zig").Swapchain;
 const Window = @import("../window/window.zig").Window;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
@@ -29,10 +27,10 @@ pub const Imgui = struct {
     const Self = @This();
 
     io: [*c]c.ImGuiIO,
-    device: Device,
+    device: vulkan.Device,
     descriptor_pool: vk.DescriptorPool,
 
-    pub fn init(instance: Instance, device: Device, swapchain: Swapchain, render_pass: vk.RenderPass, window: *Window) !Self {
+    pub fn init(vulkan_context: vulkan.VulkanContext, window: *Window) !Self {
         _ = c.ImGui_CreateContext(null);
         const io = c.ImGui_GetIO();
         io.*.IniFilename = null;
@@ -45,7 +43,7 @@ pub const Imgui = struct {
             .{ .type = .uniform_buffer, .descriptor_count = 1000 },
         };
 
-        const descriptor_pool = try device.handle.createDescriptorPool(&.{
+        const descriptor_pool = try vulkan_context.device.handle.createDescriptorPool(&.{
             .flags = .{ .free_descriptor_set_bit = true },
             .max_sets = 1000,
             .pool_size_count = pool_sizes.len,
@@ -59,19 +57,19 @@ pub const Imgui = struct {
             (@as(u32, vk.API_VERSION_1_3.minor) << 12) |
             (@as(u32, vk.API_VERSION_1_3.patch));
         var init_info: c.ImGui_ImplVulkan_InitInfo = .{
-            .Instance = @ptrFromInt(@intFromEnum(instance.handle.handle)),
-            .PhysicalDevice = @ptrFromInt(@intFromEnum(device.physical_device)),
-            .Device = @ptrFromInt(@intFromEnum(device.handle.handle)),
-            .QueueFamily = device.graphics_queue.family,
-            .Queue = @ptrFromInt(@intFromEnum(device.graphics_queue.handle)),
+            .Instance = @ptrFromInt(@intFromEnum(vulkan_context.instance.handle.handle)),
+            .PhysicalDevice = @ptrFromInt(@intFromEnum(vulkan_context.device.physical_device)),
+            .Device = @ptrFromInt(@intFromEnum(vulkan_context.device.handle.handle)),
+            .QueueFamily = vulkan_context.device.graphics_queue.family,
+            .Queue = @ptrFromInt(@intFromEnum(vulkan_context.device.graphics_queue.handle)),
             .DescriptorPool = @ptrFromInt(@intFromEnum(descriptor_pool)),
             .MinImageCount = 2,
-            .ImageCount = @intCast(swapchain.swapchain_images.len),
+            .ImageCount = @intCast(vulkan_context.swapchain.swapchain_images.len),
             .ApiVersion = api_version,
-            .PipelineInfoMain = .{ .RenderPass = @ptrFromInt(@intFromEnum(render_pass)) }
+            .PipelineInfoMain = .{ .RenderPass = @ptrFromInt(@intFromEnum(vulkan_context.pipeline.render_pass)) }
         };
 
-        if (!c.cImGui_ImplVulkan_LoadFunctionsEx(api_version, imguiLoader, @ptrCast(@constCast(&instance.handle.handle))))
+        if (!c.cImGui_ImplVulkan_LoadFunctionsEx(api_version, imguiLoader, @ptrCast(@constCast(&vulkan_context.instance.handle.handle))))
             return error.ImGuiVulkanLoadFailure;
 
         _ = c.cImGui_ImplVulkan_Init(&init_info);
@@ -84,7 +82,7 @@ pub const Imgui = struct {
 
         return Self{
             .io = io,
-            .device = device,
+            .device = vulkan_context.device,
             .descriptor_pool = descriptor_pool,
         };
     }

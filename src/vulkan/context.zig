@@ -12,12 +12,11 @@ pub const c = @cImport({
     @cInclude("backends/dcimgui_impl_vulkan.h");
 });
 
-const Window = @import("../window/window.zig").Window;
-const Device = @import("device.zig").Device;
-const Instance = @import("instance.zig").Instance;
-const Swapchain = @import("swapchain.zig").Swapchain;
-const Pipeline = @import("pipeline.zig").Pipeline;
-const Imgui = @import("imgui.zig").Imgui;
+pub const Window = @import("../window/window.zig").Window;
+pub const Device = @import("device.zig").Device;
+pub const Instance = @import("instance.zig").Instance;
+pub const Swapchain = @import("swapchain.zig").Swapchain;
+pub const Pipeline = @import("pipeline.zig").Pipeline;
 
 pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
@@ -33,8 +32,6 @@ pub const VulkanContext = struct {
     surface: vk.SurfaceKHR,
     swapchain: Swapchain,
     pipeline: Pipeline,
-
-    imgui: Imgui,
 
     framebuffers: []vk.Framebuffer,
     framebuffer_resized: bool,
@@ -58,9 +55,6 @@ pub const VulkanContext = struct {
         const pipeline = try Pipeline.init(device, swapchain);
         errdefer pipeline.deinit();
 
-        const imgui = try Imgui.init(instance, device, swapchain, pipeline.render_pass, window);
-        errdefer imgui.deinit();
-
         const framebuffers = try createFramebuffers(allocator, device, swapchain, pipeline);
         errdefer destroyFramebuffers(allocator, device, framebuffers);
 
@@ -69,7 +63,7 @@ pub const VulkanContext = struct {
 
         const command_buffers = try createCommandBuffers(allocator, device, framebuffers, command_pool);
         errdefer destroyCommandBuffers(allocator, device, command_pool, command_buffers);
-        
+
         return Self{
             .allocator = allocator,
             .base_wrapper = base_wrapper,
@@ -79,7 +73,6 @@ pub const VulkanContext = struct {
             .surface = surface,
             .swapchain = swapchain,
             .pipeline = pipeline,
-            .imgui = imgui,
             .framebuffers = framebuffers,
             .command_pool = command_pool,
             .command_buffers = command_buffers,
@@ -124,7 +117,7 @@ pub const VulkanContext = struct {
         );
     }
 
-    pub fn startFrame(self: *Self) !?vk.CommandBuffer {
+    pub fn beginFrame(self: *Self) !?vk.CommandBuffer {
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
