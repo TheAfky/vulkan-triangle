@@ -2,7 +2,7 @@ const std = @import("std");
 const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
-const GlfwWindow = @import("platform/zglfw.zig").GlfwWindow;
+const GlfwWindow = @import("platform/glfw.zig").GlfwWindow;
 
 pub const WindowError = error{
     WindowCreationFailed,
