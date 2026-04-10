@@ -27,10 +27,11 @@ pub const Imgui = struct {
     const Self = @This();
 
     io: [*c]c.ImGuiIO,
-    device: vulkan.Device,
+    device: *vulkan.Device,
     descriptor_pool: vk.DescriptorPool,
+    window: *Window,
 
-    pub fn init(vulkan_context: vulkan.VulkanContext, window: *Window) !Self {
+    pub fn init(vulkan_context: *vulkan.VulkanContext, window: *Window) !Self {
         _ = c.ImGui_CreateContext(null);
         const io = c.ImGui_GetIO();
         io.*.IniFilename = null;
@@ -50,7 +51,9 @@ pub const Imgui = struct {
             .p_pool_sizes = &pool_sizes
         }, null);
 
-        _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.Glfw.handle), true);
+        switch (window.*) {
+            .Glfw => _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.Glfw.handle), true)
+        }
 
         const api_version: u32 =
             (@as(u32, vk.API_VERSION_1_3.major) << 22) |
@@ -82,15 +85,17 @@ pub const Imgui = struct {
 
         return Self{
             .io = io,
-            .device = vulkan_context.device,
+            .device = &vulkan_context.device,
             .descriptor_pool = descriptor_pool,
+            .window = window,
         };
     }
 
     pub fn beginFrame(self: Self) void {
-        _ = self;
         c.cImGui_ImplVulkan_NewFrame();
-        c.cImGui_ImplGlfw_NewFrame();
+        switch (self.window.*) {
+            .Glfw => c.cImGui_ImplGlfw_NewFrame()
+        }
         c.ImGui_NewFrame();
     }
 
@@ -105,7 +110,10 @@ pub const Imgui = struct {
         self.device.handle.deviceWaitIdle() catch {};
 
         c.cImGui_ImplVulkan_Shutdown();
-        c.cImGui_ImplGlfw_Shutdown();
+        switch (self.window.*) {
+            .Glfw => c.cImGui_ImplGlfw_Shutdown()
+        }
+
         c.ImGui_DestroyContext(null);
         self.device.handle.destroyDescriptorPool(self.descriptor_pool, null);
     }

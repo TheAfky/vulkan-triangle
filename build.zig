@@ -53,7 +53,7 @@ pub fn build(b: *std.Build) void {
     const cimgui_dep = b.dependency("cimgui_zig", .{
         .target = target,
         .optimize = optimize,
-        .platforms = &[_]Platform{.GLFW},
+        .platforms = &[_]Platform{.GLFW, .SDL3},
         .renderers = &[_]Renderer{.Vulkan},
         // .docking = true,
     });

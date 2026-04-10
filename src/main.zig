@@ -5,6 +5,7 @@ const vk = @import("vulkan");
 const Window = @import("window/window.zig").Window;
 const WindowBackend = @import("window/window.zig").WindowBackend;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
+const Renderer = @import("renderer/renderer.zig").Renderer;
 const ImGui = @import("ui/imgui.zig").Imgui;
 
 pub const c = @cImport({ @cInclude("dcimgui.h"); });
@@ -26,10 +27,10 @@ pub fn main() !void {
     window.registerCallbacks();
     defer window.deinit();
 
-    var vulkan = try VulkanContext.init(allocator, application_name, engine_name, &window);
-    defer vulkan.deinit();
+    var renderer = try Renderer.init(allocator, &window);
+    defer renderer.deinit();
 
-    var imgui = try ImGui.init(vulkan, &window);
+    var imgui = try ImGui.init(&renderer.context, &window);
     defer imgui.deinit();
 
     var draw_trinagle = false;
@@ -37,7 +38,7 @@ pub fn main() !void {
         if (window.isMinimized()) continue;
         window.pollEvents();
 
-        const command_buffer = try vulkan.beginFrame() orelse continue;
+        const command_buffer = try renderer.beginFrame() orelse continue;
 
         imgui.beginFrame();
         c.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
@@ -46,11 +47,11 @@ pub fn main() !void {
         if(c.ImGui_Button(if (draw_trinagle) "Hide triangle" else "Show triangle")) draw_trinagle = !draw_trinagle;
 
         if (draw_trinagle)
-            vulkan.device.handle.cmdDraw(command_buffer, 3, 1, 0, 0);
+            renderer.drawTriangle(command_buffer);
 
         c.ImGui_End();
         imgui.endFrame(command_buffer);
 
-        try vulkan.endFrame(command_buffer);
+        try renderer.endFrame(command_buffer);
     }
 }
