@@ -46,7 +46,7 @@ pub const VulkanContext = struct {
 
         const surface = try window.createVulkanSurface(instance.handle.handle);
 
-        const device = try Device.init(allocator, base_wrapper, instance.handle, surface);
+        const device = try Device.init(allocator, base_wrapper, instance, surface);
         errdefer device.deinit();
 
         const swapchain = try Swapchain.init(allocator, instance.handle, device, surface, window);

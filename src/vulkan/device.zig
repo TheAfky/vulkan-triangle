@@ -2,6 +2,8 @@ const std = @import("std");
 
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
+const Instance = @import("instance.zig").Instance;
+const Buffer = @import("buffer.zig").Buffer;
 
 const required_device_extensions = [_][*:0]const u8{vk.extensions.khr_swapchain.name};
 
@@ -31,18 +33,20 @@ pub const Device = struct {
 
     allocator: std.mem.Allocator,
     base_wrapper: vk.BaseWrapper,
+    instance: Instance,
 
     handle: vk.DeviceProxyWithCustomDispatch(vk.DeviceDispatch),
     physical_device: vk.PhysicalDevice,
     graphics_queue: Queue,
     presentation_queue: Queue,
 
-    pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), surface: vk.SurfaceKHR) !Self {
+    pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, instance: Instance, surface: vk.SurfaceKHR) !Self {
         var self: Self = undefined;
         self.allocator = allocator;
         self.base_wrapper = base_wrapper;
+        self.instance = instance;
 
-        const device_candidate = try pickPhysicalDevice(allocator, instance, surface);
+        const device_candidate = try pickPhysicalDevice(allocator, instance.handle, surface);
 
         const priority = [_]f32{1};
         const device_queue_create_info = [_]vk.DeviceQueueCreateInfo{ .{
@@ -68,11 +72,11 @@ pub const Device = struct {
             .pp_enabled_extension_names = @ptrCast(&required_device_extensions),
         };
 
-        const raw_device = try instance.createDevice(device_candidate.physical_device, &device_create_info, null);
+        const raw_device = try instance.handle.createDevice(device_candidate.physical_device, &device_create_info, null);
 
         const device_wrapper = try allocator.create(vk.DeviceWrapper);
-        device_wrapper.* = vk.DeviceWrapper.load(raw_device, instance.wrapper.dispatch.vkGetDeviceProcAddr.?);
-        
+        device_wrapper.* = vk.DeviceWrapper.load(raw_device, instance.handle.wrapper.dispatch.vkGetDeviceProcAddr.?);
+
         self.physical_device = device_candidate.physical_device;
         self.handle = vk.DeviceProxy.init(raw_device, device_wrapper);
 
@@ -83,9 +87,75 @@ pub const Device = struct {
 
         return self;
     }
+
     pub fn deinit(self: Self) void {
         self.handle.destroyDevice(null);
         self.allocator.destroy(self.handle.wrapper);
+    }
+
+    fn findMemoryType(
+        self: *Self,
+        type_filter: u32,
+        properties: vk.MemoryPropertyFlags,
+    ) !u32 {
+        var memory_properties = self.instance.handle.getPhysicalDeviceMemoryProperties(
+            self.physical_device,
+        );
+
+        for (memory_properties.memory_types[0..memory_properties.memory_type_count], 0..) |memory_type, i| {
+            const index: u32 = @intCast(i);
+
+            const bit: u32 = @as(u32, 1) << @intCast(index);
+            const suitable = (type_filter & bit) != 0;
+            const has_props = (memory_type.property_flags) == properties;
+
+            if (suitable and has_props) return index;
+        }
+
+        return error.NoSuitableMemoryType;
+    }
+
+    pub fn allocateMemory(
+        self: *Self,
+        requirements: vk.MemoryRequirements,
+        properties: vk.MemoryPropertyFlags,
+    ) !vk.DeviceMemory {
+        const memory_type_index = try self.findMemoryType(
+            requirements.memory_type_bits,
+            properties,
+        );
+
+        const memory_allocation_info = vk.MemoryAllocateInfo{
+            .allocation_size = requirements.size,
+            .memory_type_index = memory_type_index,
+        };
+
+        return try self.handle.allocateMemory(&memory_allocation_info, null);
+    }
+
+    pub fn createBuffer(
+        self: *Self,
+        size: u64,
+        usage: vk.BufferUsageFlags,
+        properties: vk.MemoryPropertyFlags,
+    ) !Buffer {
+        const buffer = try self.handle.createBuffer(&.{
+            .size = size,
+            .usage = usage,
+            .sharing_mode = .exclusive,
+        }, null);
+
+        const mem_requirements = self.handle.getBufferMemoryRequirements(buffer);
+
+        const memory = try self.allocateMemory(mem_requirements, properties);
+
+        try self.handle.bindBufferMemory(buffer, memory, 0);
+
+        return Buffer{
+            .handle = buffer,
+            .memory = memory,
+            .size = size,
+        };
     }
 };
 
@@ -141,21 +211,23 @@ fn checkSuitable(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCus
             graphics_family = family;
         }
 
-        if (presentation_family == null and (try instance.getPhysicalDeviceSurfaceSupportKHR(physical_device, family, surface)) == .true) {
+        if (presentation_family == null and
+            (try instance.getPhysicalDeviceSurfaceSupportKHR(physical_device, family, surface)) == .true)
+        {
             presentation_family = family;
         }
-
-        return .{
-            .physical_device = physical_device,
-            .score = score,
-            .physical_device_properties = physical_device_properties,
-            .physical_device_features = physical_device_features,
-            .graphics_family = graphics_family.?,
-            .presentation_family = presentation_family.?,
-        };
     }
 
-    return null;
+    if (graphics_family == null or presentation_family == null) return null;
+
+    return .{
+        .physical_device = physical_device,
+        .score = score,
+        .physical_device_properties = physical_device_properties,
+        .physical_device_features = physical_device_features,
+        .graphics_family = graphics_family.?,
+        .presentation_family = presentation_family.?,
+    };
 }
 
 fn checkExtensionSupport(allocator: std.mem.Allocator, instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch), physical_device: vk.PhysicalDevice) !bool {
