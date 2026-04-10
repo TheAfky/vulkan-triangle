@@ -54,25 +54,12 @@ pub const Pipeline = struct {
             .p_dynamic_states = &dynamic_states,
         };
 
-        const binding = vk.VertexInputBindingDescription{
-            .binding = 0,
-            .stride = @sizeOf(Vertex),
-            .input_rate = .vertex,
-        };
-
-        const attribute = vk.VertexInputAttributeDescription{
-            .location = 0,
-            .binding = 0,
-            .format = .r32g32b32_sfloat,
-            .offset = @offsetOf(Vertex, "pos"),
-        };
-
         const vertex_input = vk.PipelineVertexInputStateCreateInfo{
             .vertex_binding_description_count = 1,
-            .p_vertex_binding_descriptions = &[_]vk.VertexInputBindingDescription{binding},
+            .p_vertex_binding_descriptions = &[_]vk.VertexInputBindingDescription{Vertex.binding_description},
 
-            .vertex_attribute_description_count = 1,
-            .p_vertex_attribute_descriptions = &[_]vk.VertexInputAttributeDescription{attribute},
+            .vertex_attribute_description_count = Vertex.attribute_description.len,
+            .p_vertex_attribute_descriptions = &Vertex.attribute_description,
         };
 
         const input_assembly = vk.PipelineInputAssemblyStateCreateInfo{
@@ -92,7 +79,7 @@ pub const Pipeline = struct {
             .rasterizer_discard_enable = .false,
             .polygon_mode = .fill,
             .line_width = 1,
-            .cull_mode = .{ },//.back_bit = true },
+            .cull_mode = .{ .back_bit = true },
             .front_face = .clockwise,
             .depth_bias_enable = .false,
             .depth_bias_constant_factor = 0,

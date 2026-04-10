@@ -18,9 +18,9 @@ const window_width: u32 = 960;
 const window_height: u32 = 640;
 
 const vertices = [_]Vertex{
-    .{ .pos = .{ 0.0, -0.5, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.0 } },
+    .{ .pos = .{ 0, -0.5 }, .color = .{ 1, 0, 0 } },
+    .{ .pos = .{ 0.5, 0.5 }, .color = .{ 0, 1, 0 } },
+    .{ .pos = .{ -0.5, 0.5 }, .color = .{ 0, 0, 1 } },
 };
 
 pub fn main() !void {
