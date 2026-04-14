@@ -1,7 +1,9 @@
 const std = @import("std");
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
-const vulkan = @import("../vulkan/context.zig");
+
+const Window = @import("../window/window.zig").Window;
+const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
 
 pub const c = @cImport({
     @cDefine("GLFW_INCLUDE_VULKAN", "1");
@@ -12,26 +14,15 @@ pub const c = @cImport({
     @cInclude("backends/dcimgui_impl_vulkan.h");
 });
 
-const Window = @import("../window/window.zig").Window;
-
-pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
-
-fn imguiLoader(name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) c.PFN_vkVoidFunction {
-    if (user_data == null) return null;
-
-    const instance: *vk.Instance = @ptrCast(@alignCast(user_data.?));
-    return glfwGetInstanceProcAddress(instance.*, name);
-}
-
 pub const Imgui = struct {
     const Self = @This();
 
-    io: [*c]c.ImGuiIO,
-    device: *vulkan.Device,
+    io: *c.ImGuiIO,
     descriptor_pool: vk.DescriptorPool,
+    context: *VulkanContext,
     window: *Window,
 
-    pub fn init(vulkan_context: *vulkan.VulkanContext, window: *Window) !Self {
+    pub fn init(vulkan_context: *VulkanContext, window: *Window) !Self {
         _ = c.ImGui_CreateContext(null);
         const io = c.ImGui_GetIO();
         io.*.IniFilename = null;
@@ -48,17 +39,23 @@ pub const Imgui = struct {
             .flags = .{ .free_descriptor_set_bit = true },
             .max_sets = 1000,
             .pool_size_count = pool_sizes.len,
-            .p_pool_sizes = &pool_sizes
+            .p_pool_sizes = &pool_sizes,
         }, null);
+        errdefer vulkan_context.device.handle.destroyDescriptorPool(descriptor_pool, null);
 
         switch (window.*) {
-            .Glfw => _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.Glfw.handle), true)
+            .Glfw => |glfw_window| {
+                _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(glfw_window.handle), true);
+            },
+        }
+        errdefer {
+            switch (window.*) {
+                .Glfw => c.cImGui_ImplGlfw_Shutdown(),
+            }
         }
 
-        const api_version: u32 =
-            (@as(u32, vk.API_VERSION_1_3.major) << 22) |
-            (@as(u32, vk.API_VERSION_1_3.minor) << 12) |
-            (@as(u32, vk.API_VERSION_1_3.patch));
+        const api_version = vk.makeApiVersion(0, 1, 3, 0);
+
         var init_info: c.ImGui_ImplVulkan_InitInfo = .{
             .Instance = @ptrFromInt(@intFromEnum(vulkan_context.instance.handle.handle)),
             .PhysicalDevice = @ptrFromInt(@intFromEnum(vulkan_context.device.physical_device)),
@@ -68,25 +65,34 @@ pub const Imgui = struct {
             .DescriptorPool = @ptrFromInt(@intFromEnum(descriptor_pool)),
             .MinImageCount = 2,
             .ImageCount = @intCast(vulkan_context.swapchain.swapchain_images.len),
-            .ApiVersion = api_version,
-            .PipelineInfoMain = .{ .RenderPass = @ptrFromInt(@intFromEnum(vulkan_context.pipeline.render_pass)) }
+            .ApiVersion = @as(u32, @bitCast(api_version)),
+            .PipelineInfoMain = .{
+                .RenderPass = @ptrFromInt(@intFromEnum(vulkan_context.pipeline.render_pass)),
+            },
         };
 
-        if (!c.cImGui_ImplVulkan_LoadFunctionsEx(api_version, imguiLoader, @ptrCast(@constCast(&vulkan_context.instance.handle.handle))))
+        if (!c.cImGui_ImplVulkan_LoadFunctionsEx(
+            @as(u32, @bitCast(api_version)),
+            imguiLoader,
+            @ptrCast(&vulkan_context.instance.handle.handle),
+        )) {
             return error.ImGuiVulkanLoadFailure;
+        }
 
-        _ = c.cImGui_ImplVulkan_Init(&init_info);
+        if (!c.cImGui_ImplVulkan_Init(&init_info)) {
+            return error.ImGuiVulkanInitFailure;
+        }
+
         c.ImGui_StyleColorsClassic(null);
 
         const style = c.ImGui_GetStyle();
-
         style.*.FontScaleDpi = 1.5;
         c.ImGuiStyle_ScaleAllSizes(style, 1.5);
 
         return Self{
             .io = io,
-            .device = &vulkan_context.device,
             .descriptor_pool = descriptor_pool,
+            .context = vulkan_context,
             .window = window,
         };
     }
@@ -94,7 +100,7 @@ pub const Imgui = struct {
     pub fn beginFrame(self: Self) void {
         c.cImGui_ImplVulkan_NewFrame();
         switch (self.window.*) {
-            .Glfw => c.cImGui_ImplGlfw_NewFrame()
+            .Glfw => c.cImGui_ImplGlfw_NewFrame(),
         }
         c.ImGui_NewFrame();
     }
@@ -107,14 +113,22 @@ pub const Imgui = struct {
     }
 
     pub fn deinit(self: Self) void {
-        self.device.handle.deviceWaitIdle() catch {};
+        _ = self.context.device.handle.deviceWaitIdle() catch {};
 
         c.cImGui_ImplVulkan_Shutdown();
         switch (self.window.*) {
-            .Glfw => c.cImGui_ImplGlfw_Shutdown()
+            .Glfw => c.cImGui_ImplGlfw_Shutdown(),
         }
 
         c.ImGui_DestroyContext(null);
-        self.device.handle.destroyDescriptorPool(self.descriptor_pool, null);
+        self.context.device.handle.destroyDescriptorPool(self.descriptor_pool, null);
     }
 };
+
+fn imguiLoader(name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) c.PFN_vkVoidFunction {
+    const instance_ptr = user_data orelse return null;
+    const instance: *vk.Instance = @ptrCast(@alignCast(instance_ptr));
+    return glfwGetInstanceProcAddress(instance.*, name);
+}
+
+pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
