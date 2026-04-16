@@ -12,7 +12,7 @@ pub const c = @cImport({
     @cInclude("backends/dcimgui_impl_vulkan.h");
 });
 
-pub const Window = @import("../window/window.zig").Window;
+pub const Window = @import("../window.zig").Window;
 pub const Device = @import("device.zig").Device;
 pub const Instance = @import("instance.zig").Instance;
 pub const Swapchain = @import("swapchain.zig").Swapchain;
@@ -41,7 +41,7 @@ pub const VulkanContext = struct {
     pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: *Window) !Self {
         const base_wrapper = vk.BaseWrapper.load(glfwGetInstanceProcAddress);
 
-        const instance = try Instance.init(allocator, base_wrapper, application_name, engine_name);
+        const instance = try Instance.init(allocator, base_wrapper, application_name, engine_name, window);
         errdefer instance.deinit();
 
         const surface = try window.createVulkanSurface(instance.handle.handle);

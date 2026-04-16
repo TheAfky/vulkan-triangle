@@ -2,7 +2,7 @@ const std = @import("std");
 const vk = @import("vulkan");
 
 const Device = @import("device.zig").Device;
-const Window = @import("../window/window.zig").Window;
+const Window = @import("../window.zig").Window;
 
 pub const Swapchain = struct {
     const Self = @This();
@@ -41,7 +41,7 @@ pub const Swapchain = struct {
         self.device = device;
 
         const surface_capabilities_khr = try instance.getPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device, surface);
-        self.surface_extent = window.getSurfaceExtent(surface_capabilities_khr);
+        self.surface_extent = try window.getSurfaceExtent(surface_capabilities_khr);
 
         self.surface_format = try findSurfaceFormat(self.allocator, self.instance, self.surface, self.device);
         self.present_mode = try findPresentMode(self.allocator, self.instance, self.surface, self.device);

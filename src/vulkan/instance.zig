@@ -1,7 +1,7 @@
 const std = @import("std");
-
 const vk = @import("vulkan");
-const zglfw = @import("zglfw");
+
+const Window = @import("../window.zig").Window;
 
 pub const Instance = struct {
     const Self = @This();
@@ -11,7 +11,7 @@ pub const Instance = struct {
     debug_messenger: ?vk.DebugUtilsMessengerEXT = null,
     raw_instance: vk.Instance,
 
-    pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, application_name: [*:0]const u8, engine_name: [*:0]const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, base_wrapper: vk.BaseWrapper, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: *Window) !Self {
         const application_info = vk.ApplicationInfo{
             .s_type = vk.StructureType.application_info,
             .p_next = null,
@@ -40,10 +40,9 @@ pub const Instance = struct {
         try extension_names.append(allocator, vk.extensions.khr_portability_enumeration.name);
         try extension_names.append(allocator, vk.extensions.khr_get_physical_device_properties_2.name);
 
-        // GLFW extensions
-        var glfw_extensions_count: u32 = 0;
-        const glfw_extensions = zglfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return error.MissingGLFWExtensions;
-        try extension_names.appendSlice(allocator, @ptrCast(glfw_extensions[0..glfw_extensions_count]));
+        // Window extensions
+        try extension_names.appendSlice(allocator, try window.getInstanceExtensions());
+
 
         const create_info = vk.InstanceCreateInfo{
             .s_type = vk.StructureType.instance_create_info,

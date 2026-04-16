@@ -2,8 +2,8 @@ const std = @import("std");
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
 
-const Window = @import("../window/window.zig").Window;
-const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
+const Window = @import("window.zig").Window;
+const VulkanContext = @import("vulkan/context.zig").VulkanContext;
 
 pub const c = @cImport({
     @cDefine("GLFW_INCLUDE_VULKAN", "1");
@@ -43,16 +43,8 @@ pub const Imgui = struct {
         }, null);
         errdefer vulkan_context.device.handle.destroyDescriptorPool(descriptor_pool, null);
 
-        switch (window.*) {
-            .Glfw => |glfw_window| {
-                _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(glfw_window.handle), true);
-            },
-        }
-        errdefer {
-            switch (window.*) {
-                .Glfw => c.cImGui_ImplGlfw_Shutdown(),
-            }
-        }
+        _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.handle), true);
+        errdefer c.cImGui_ImplGlfw_Shutdown();
 
         const api_version = vk.makeApiVersion(0, 1, 3, 0);
 
@@ -98,10 +90,9 @@ pub const Imgui = struct {
     }
 
     pub fn beginFrame(self: Self) void {
+        _ = self;
         c.cImGui_ImplVulkan_NewFrame();
-        switch (self.window.*) {
-            .Glfw => c.cImGui_ImplGlfw_NewFrame(),
-        }
+        c.cImGui_ImplGlfw_NewFrame();
         c.ImGui_NewFrame();
     }
 
@@ -116,10 +107,7 @@ pub const Imgui = struct {
         _ = self.context.device.handle.deviceWaitIdle() catch {};
 
         c.cImGui_ImplVulkan_Shutdown();
-        switch (self.window.*) {
-            .Glfw => c.cImGui_ImplGlfw_Shutdown(),
-        }
-
+        c.cImGui_ImplGlfw_Shutdown();
         c.ImGui_DestroyContext(null);
         self.context.device.handle.destroyDescriptorPool(self.descriptor_pool, null);
     }

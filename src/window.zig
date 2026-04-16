@@ -2,30 +2,32 @@ const std = @import("std");
 const zglfw = @import("zglfw");
 const vk = @import("vulkan");
 
-const WindowError = @import("../window.zig").WindowError;
-const FramebufferSize = @import("../window.zig").FramebufferSize;
+pub const WindowError = error{ WindowCreationFailed, SurfaceCreationFailed };
 
-fn framebufferResizeCallback(
-    window: *zglfw.Window,
-    width: c_int,
-    height: c_int
-) callconv(.c) void {
+pub const FramebufferSize = struct {
+    width: u32,
+    height: u32,
+};
+
+fn framebufferResizeCallback(window: *zglfw.Window, width: c_int, height: c_int) callconv(.c) void {
     if (width <= 0 or height <= 0) return;
 
     const ctx_ptr = zglfw.getWindowUserPointer(window);
     if (ctx_ptr == null) return;
 
-    const glfw_window: *GlfwWindow = @ptrCast(@alignCast(ctx_ptr.?));
+    const glfw_window: *Window = @ptrCast(@alignCast(ctx_ptr.?));
     glfw_window.framebuffer_resized = true;
 }
 
-pub const GlfwWindow = struct {
+pub const Window = struct {
     const Self = @This();
 
     handle: *zglfw.Window,
     framebuffer_resized: bool,
 
     pub fn init(width: u32, height: u32, title: []const u8) !Self {
+        try zglfw.init();
+
         zglfw.windowHint(zglfw.ClientAPI, zglfw.NoAPI);
         zglfw.windowHint(zglfw.Resizable, 1);
 
@@ -39,6 +41,7 @@ pub const GlfwWindow = struct {
 
     pub fn deinit(self: Self) void {
         zglfw.destroyWindow(self.handle);
+        zglfw.terminate();
     }
 
     pub fn registerCallbacks(self: *Self) void {
@@ -46,15 +49,15 @@ pub const GlfwWindow = struct {
         _ = zglfw.setFramebufferSizeCallback(self.handle, framebufferResizeCallback);
     }
 
-    pub fn getFramebufferSize(self: Self) FramebufferSize {
+    pub fn getFramebufferSize(self: Self) !FramebufferSize {
         var widht: c_int = 0;
         var height: c_int = 0;
         zglfw.getFramebufferSize(self.handle, &widht, &height);
         return .{ .width = @intCast(widht), .height = @intCast(height) };
     }
 
-    pub fn isMinimized(self: Self) bool {
-        const size = self.getFramebufferSize();
+    pub fn isMinimized(self: Self) !bool {
+        const size = try self.getFramebufferSize();
         return size.width <= 0 and size.height <= 0;
     }
 
@@ -83,16 +86,23 @@ pub const GlfwWindow = struct {
         return @enumFromInt(raw_surface);
     }
 
-    pub fn getSurfaceExtent(self: Self, surface_capabilities: vk.SurfaceCapabilitiesKHR) vk.Extent2D {
+    pub fn getSurfaceExtent(self: Self, surface_capabilities: vk.SurfaceCapabilitiesKHR) !vk.Extent2D {
         // if not 0xFFFF_FFFF limit the size of the surface
         if (surface_capabilities.current_extent.width != 0xFFFF_FFFF) {
             return surface_capabilities.current_extent;
         } else {
-            const size = self.getFramebufferSize();
+            const size = try self.getFramebufferSize();
             return .{
                 .width = std.math.clamp(size.width, surface_capabilities.min_image_extent.width, surface_capabilities.max_image_extent.width),
                 .height = std.math.clamp(size.height, surface_capabilities.min_image_extent.height, surface_capabilities.max_image_extent.height),
             };
         }
+    }
+
+    pub fn getInstanceExtensions(self: Self) ![]const [*:0]const u8 {
+        _ = self;
+        var glfw_extensions_count: u32 = 0;
+        const glfw_extensions = zglfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return error.MissingGLFWExtensions;
+        return @ptrCast(glfw_extensions[0..glfw_extensions_count]);
     }
 };

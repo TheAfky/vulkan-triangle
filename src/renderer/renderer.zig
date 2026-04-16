@@ -2,7 +2,7 @@ const std = @import("std");
 const vk = @import("vulkan");
 
 const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
-const Window = @import("../window/window.zig").Window;
+const Window = @import("../window.zig").Window;
 const DrawCommand = @import("resources/draw_command.zig").DrawCommand;
 
 pub const Renderer = struct {

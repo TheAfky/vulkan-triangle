@@ -1,10 +1,8 @@
 const std = @import("std");
-const zglfw = @import("zglfw");
 
-const Window = @import("window/window.zig").Window;
-const WindowBackend = @import("window/window.zig").WindowBackend;
+const Window = @import("window.zig").Window;
 const Renderer = @import("renderer/renderer.zig").Renderer;
-const ImGui = @import("ui/imgui.zig").Imgui;
+const ImGui = @import("imgui.zig").Imgui;
 const Mesh = @import("renderer/resources/mesh.zig").Mesh;
 const Vertex = @import("renderer/resources/vertex.zig").Vertex;
 
@@ -29,13 +27,11 @@ pub const App = struct {
     draw_triangle: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) !*App {
-        try zglfw.init();
-
         const app = try allocator.create(App);
 
         app.allocator = allocator;
 
-        app.window = try Window.init(.Glfw, window_width, window_height, application_name);
+        app.window = try Window.init(window_width, window_height, application_name);
         app.window.registerCallbacks();
         errdefer app.window.deinit();
 
@@ -59,7 +55,7 @@ pub const App = struct {
     pub fn run(self: *App) !void {
         while (!self.window.shouldClose()) {
             self.window.pollEvents();
-            if (self.window.isMinimized()) continue;
+            if (try self.window.isMinimized()) continue;
 
             const cmd = try self.renderer.beginFrame() orelse continue;
 
@@ -101,6 +97,5 @@ pub const App = struct {
         self.triangle_mesh.destroy(&self.renderer.context.device);
         self.renderer.deinit();
         self.window.deinit();
-        zglfw.terminate();
     }
 };
