@@ -2,6 +2,9 @@ const std = @import("std");
 const vk = @import("vulkan");
 
 const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
+const Instance = @import("../vulkan/instance.zig").Instance;
+const Device = @import("../vulkan/device.zig").Device;
+
 const Window = @import("../window.zig").Window;
 const DrawCommand = @import("resources/draw_command.zig").DrawCommand;
 
@@ -30,12 +33,12 @@ pub const Renderer = struct {
         self.draw_commands.deinit(self.allocator);
     }
 
-    pub fn beginFrame(self: *Self) !?vk.CommandBuffer {
-        return try self.context.beginFrame();
+    pub fn beginFrame(self: *Self, window: *Window) !?vk.CommandBuffer {
+        return try self.context.beginFrame(window);
     }
 
-    pub fn endFrame(self: *Self, cmd: vk.CommandBuffer) !void {
-        try self.context.endFrame(cmd);
+    pub fn endFrame(self: *Self, cmd: vk.CommandBuffer, window: *Window) !void {
+        try self.context.endFrame(cmd, window);
     }
 
     pub fn submit(self: *Self, cmd: DrawCommand) void {
@@ -70,5 +73,17 @@ pub const Renderer = struct {
         }
 
         self.draw_commands.clearRetainingCapacity();
+    }
+
+    pub fn device(self: *Self) *Device {
+        return &self.context.device;
+    }
+
+    pub fn instance(self: *Self) *Instance {
+        return &self.context.instance;
+    }
+
+    pub fn vulkan_context(self: *Self) *VulkanContext {
+        return &self.context;
     }
 };

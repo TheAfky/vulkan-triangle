@@ -3,19 +3,13 @@ const App = @import("app.zig").App;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        switch (gpa.deinit()) {
-            .ok => {},
-            .leak => std.debug.panic("Memory leaked", .{}),
-        }
-    }
+    defer if (gpa.deinit() == .leak) {
+        std.debug.panic("Memory leaked", .{});
+    };
 
     const allocator = gpa.allocator();
     var app = try App.init(allocator);
-    defer {
-        app.deinit();
-        allocator.destroy(app);
-    }
+    defer app.deinit();
 
     try app.run();
 }

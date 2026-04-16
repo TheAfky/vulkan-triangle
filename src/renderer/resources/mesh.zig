@@ -21,26 +21,21 @@ pub const Mesh = struct {
             .usage = usage,
             .sharing_mode = .exclusive,
         }, null);
+        errdefer device.handle.destroyBuffer(buffer, null);
 
         const mem_requirements = device.handle.getBufferMemoryRequirements(buffer);
         const memory = try device.allocateMemory(mem_requirements, properties);
+        errdefer device.handle.freeMemory(memory, null);
 
         try device.handle.bindBufferMemory(buffer, memory, 0);
 
-        // 🔥 IMPORTANT: upload vertex data
-    const data = try device.handle.mapMemory(
-            memory,
-            0,
-            size,
-            .{},
-        );
+        const data = try device.handle.mapMemory(memory, 0, size, .{});
+        defer device.handle.unmapMemory(memory);
 
         @memcpy(
             @as([*]u8, @ptrCast(data)),
             std.mem.sliceAsBytes(vertices),
         );
-
-        device.handle.unmapMemory(memory);
 
         return Mesh{
             .vertex_buffer = buffer,

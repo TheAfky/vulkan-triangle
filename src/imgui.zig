@@ -4,6 +4,7 @@ const zglfw = @import("zglfw");
 
 const Window = @import("window.zig").Window;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
+const Device = @import("vulkan/device.zig").Device;
 
 pub const c = @cImport({
     @cDefine("GLFW_INCLUDE_VULKAN", "1");
@@ -19,8 +20,6 @@ pub const Imgui = struct {
 
     io: *c.ImGuiIO,
     descriptor_pool: vk.DescriptorPool,
-    context: *VulkanContext,
-    window: *Window,
 
     pub fn init(vulkan_context: *VulkanContext, window: *Window) !Self {
         _ = c.ImGui_CreateContext(null);
@@ -84,8 +83,6 @@ pub const Imgui = struct {
         return Self{
             .io = io,
             .descriptor_pool = descriptor_pool,
-            .context = vulkan_context,
-            .window = window,
         };
     }
 
@@ -103,13 +100,13 @@ pub const Imgui = struct {
         c.cImGui_ImplVulkan_RenderDrawData(draw_data, @ptrFromInt(@intFromEnum(command_buffer)));
     }
 
-    pub fn deinit(self: Self) void {
-        _ = self.context.device.handle.deviceWaitIdle() catch {};
+    pub fn deinit(self: Self, device: *Device) void {
+        _ = device.handle.deviceWaitIdle() catch {};
 
         c.cImGui_ImplVulkan_Shutdown();
         c.cImGui_ImplGlfw_Shutdown();
         c.ImGui_DestroyContext(null);
-        self.context.device.handle.destroyDescriptorPool(self.descriptor_pool, null);
+        device.handle.destroyDescriptorPool(self.descriptor_pool, null);
     }
 };
 

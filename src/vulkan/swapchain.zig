@@ -15,7 +15,6 @@ pub const Swapchain = struct {
     allocator: std.mem.Allocator,
     instance: vk.InstanceProxyWithCustomDispatch(vk.InstanceDispatch),
     surface: vk.SurfaceKHR,
-    window: *Window,
     device: Device,
 
     surface_extent: vk.Extent2D,
@@ -37,7 +36,6 @@ pub const Swapchain = struct {
         self.allocator = allocator;
         self.instance = instance;
         self.surface = surface;
-        self.window = window;
         self.device = device;
 
         const surface_capabilities_khr = try instance.getPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device, surface);
@@ -120,12 +118,11 @@ pub const Swapchain = struct {
         self.device.handle.destroySwapchainKHR(self.handle, null);
     }
 
-    pub fn recreate(self: *Swapchain) !void {
+    pub fn recreate(self: *Swapchain, window: *Window) !void {
         const allocator = self.allocator;
         const instance = self.instance;
         const device = self.device;
         const surface = self.surface;
-        const window = self.window;
         const old_handle = self.handle;
 
         try self.device.handle.queueWaitIdle(self.device.presentation_queue.handle);

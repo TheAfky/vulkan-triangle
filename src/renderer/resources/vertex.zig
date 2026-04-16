@@ -1,6 +1,9 @@
 const vk = @import("vulkan");
 
 pub const Vertex = struct {
+    pos: [3]f32,
+    color: [3]f32,
+
     pub const binding_description = vk.VertexInputBindingDescription{
         .binding = 0,
         .stride = @sizeOf(Vertex),
@@ -21,7 +24,4 @@ pub const Vertex = struct {
             .offset = @offsetOf(Vertex, "color"),
         },
     };
-
-    pos: [2]f32,
-    color: [3]f32,
 };

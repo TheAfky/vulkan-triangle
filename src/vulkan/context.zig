@@ -1,9 +1,8 @@
 const std = @import("std");
-
 const vk = @import("vulkan");
 const zglfw = @import("zglfw");
 
-pub const c = @cImport({
+const c = @cImport({
     @cDefine("GLFW_INCLUDE_VULKAN", "1");
     @cDefine("GLFW_INCLUDE_NONE", "1");
     @cInclude("GLFW/glfw3.h");
@@ -18,7 +17,7 @@ pub const Instance = @import("instance.zig").Instance;
 pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const Pipeline = @import("pipeline.zig").Pipeline;
 
-pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
+extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
 pub const VulkanContext = struct {
     const Self = @This();
@@ -26,7 +25,6 @@ pub const VulkanContext = struct {
     allocator: std.mem.Allocator,
     base_wrapper: vk.BaseWrapper,
 
-    window: *Window,
     instance: Instance,
     device: Device,
     surface: vk.SurfaceKHR,
@@ -67,7 +65,6 @@ pub const VulkanContext = struct {
         return Self{
             .allocator = allocator,
             .base_wrapper = base_wrapper,
-            .window = window,
             .instance = instance,
             .device = device,
             .surface = surface,
@@ -94,10 +91,10 @@ pub const VulkanContext = struct {
         self.instance.deinit();
     }
 
-    fn recreateSwapchain(self: *Self) !void {
+    fn recreateSwapchain(self: *Self, window: *Window) !void {
         self.device.handle.deviceWaitIdle() catch {};
 
-        try self.swapchain.recreate();
+        try self.swapchain.recreate(window);
 
         destroyFramebuffers(self.allocator, self.device, self.framebuffers);
         self.framebuffers = try createFramebuffers(
@@ -116,14 +113,14 @@ pub const VulkanContext = struct {
         );
     }
 
-    pub fn beginFrame(self: *Self) !?vk.CommandBuffer {
+    pub fn beginFrame(self: *Self, window: *Window) !?vk.CommandBuffer {
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
         try self.swapchain.currentSwapchainImage().waitForFence(self.device);
 
-        if (self.window.consumeResize()) {
-            try self.recreateSwapchain();
+        if (window.consumeResize()) {
+            try self.recreateSwapchain(window);
             return null;
         }
 
@@ -157,24 +154,22 @@ pub const VulkanContext = struct {
         self.device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
         self.device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
 
-        self.device.handle.cmdBindPipeline(command_buffer, .graphics, self.pipeline.pipeline);
-
         return command_buffer;
     }
 
-    pub fn endFrame(self: *Self, command_buffer: vk.CommandBuffer) !void {
+    pub fn endFrame(self: *Self, command_buffer: vk.CommandBuffer, window: *Window) !void {
         self.device.handle.cmdEndRenderPass(command_buffer);
         try self.device.handle.endCommandBuffer(command_buffer);
 
         _ = self.swapchain.present(command_buffer) catch |err| switch (err) {
             error.OutOfDateKHR => {
-                try self.recreateSwapchain();
+                try self.recreateSwapchain(window);
             },
             else => |e| return e,
         };
 
         if (self.swapchain.state == .suboptimal) {
-            try self.recreateSwapchain();
+            try self.recreateSwapchain(window);
         }
     }
 };

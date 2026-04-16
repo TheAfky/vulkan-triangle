@@ -9,21 +9,13 @@ pub const FramebufferSize = struct {
     height: u32,
 };
 
-fn framebufferResizeCallback(window: *zglfw.Window, width: c_int, height: c_int) callconv(.c) void {
-    if (width <= 0 or height <= 0) return;
-
-    const ctx_ptr = zglfw.getWindowUserPointer(window);
-    if (ctx_ptr == null) return;
-
-    const glfw_window: *Window = @ptrCast(@alignCast(ctx_ptr.?));
-    glfw_window.framebuffer_resized = true;
-}
-
 pub const Window = struct {
     const Self = @This();
 
     handle: *zglfw.Window,
     framebuffer_resized: bool,
+    last_width: u32,
+    last_height: u32,
 
     pub fn init(width: u32, height: u32, title: []const u8) !Self {
         try zglfw.init();
@@ -36,17 +28,14 @@ pub const Window = struct {
         return .{
             .handle = handle,
             .framebuffer_resized = false,
+            .last_width = width,
+            .last_height = height,
         };
     }
 
     pub fn deinit(self: Self) void {
         zglfw.destroyWindow(self.handle);
         zglfw.terminate();
-    }
-
-    pub fn registerCallbacks(self: *Self) void {
-        zglfw.setWindowUserPointer(self.handle, @ptrCast(@constCast(self)));
-        _ = zglfw.setFramebufferSizeCallback(self.handle, framebufferResizeCallback);
     }
 
     pub fn getFramebufferSize(self: Self) !FramebufferSize {
@@ -73,8 +62,15 @@ pub const Window = struct {
         return false;
     }
 
-    pub fn pollEvents(self: Self) void {
-        _ = self;
+    pub fn pollEvents(self: *Self) void {
+        const size = try self.getFramebufferSize();
+
+        if (size.width != self.last_width or size.height != self.last_height) {
+            self.last_width = size.width;
+            self.last_height = size.height;
+            self.framebuffer_resized = true;
+        }
+
         zglfw.waitEventsTimeout(0.001);
     }
 
