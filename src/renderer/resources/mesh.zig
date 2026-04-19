@@ -18,6 +18,7 @@ pub const Mesh = struct {
         const buffer = try device.createBuffer(size, usage, properties);
 
         const data = try device.handle.mapMemory(buffer.memory, 0, size, .{});
+        defer device.handle.unmapMemory(buffer.memory);
 
         @memcpy(
             @as([*]u8, @ptrCast(data)),
@@ -33,5 +34,26 @@ pub const Mesh = struct {
     pub fn destroy(self: *Mesh, device: *Device) void {
         device.handle.freeMemory(self.vertex_buffer.memory, null);
         device.handle.destroyBuffer(self.vertex_buffer.handle, null);
+    }
+
+    pub fn update(self: *Mesh, device: *Device, vertices: []const Vertex) !void {
+        const size = @sizeOf(Vertex) * vertices.len;
+
+        if (vertices.len != self.vertex_count) {
+            return error.VertexCountMismatch;
+        }
+
+        const data = try device.handle.mapMemory(
+            self.vertex_buffer.memory,
+            0,
+            size,
+            .{},
+        );
+        defer device.handle.unmapMemory(self.vertex_buffer.memory);
+
+        @memcpy(
+            @as([*]u8, @ptrCast(data)),
+            std.mem.sliceAsBytes(vertices),
+        );
     }
 };

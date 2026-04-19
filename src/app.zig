@@ -27,6 +27,11 @@ pub const App = struct {
     triangle_mesh: Mesh,
     imgui: ImGui,
     draw_triangle: bool = true,
+    vertices: [3]Vertex = .{
+        .{ .pos = .{ 0, -0.5, 0 }, .color = .{ 1, 0, 0 } },
+        .{ .pos = .{ 0.5, 0.5, 0 }, .color = .{ 0, 1, 0 } },
+        .{ .pos = .{ -0.5, 0.5, 0 }, .color = .{ 0, 0, 1 } },
+    },
 
     pub fn init(allocator: std.mem.Allocator) !Self {
         var window = try Window.init(window_width, window_height, application_name);
@@ -57,6 +62,7 @@ pub const App = struct {
 
     fn drawUI(self: *Self) void {
         c.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
+        c.ImGui_SetNextWindowSize(.{ .x = 300, .y = 300}, 0);
         _ = c.ImGui_Begin(
             "Main",
             1,
@@ -73,6 +79,19 @@ pub const App = struct {
             self.draw_triangle = !self.draw_triangle;
         }
 
+        c.ImGui_Separator();
+
+        for (&self.vertices, 0..) |*v, i| {
+            var color: [3]f32 = v.color;
+
+            var label_buf: [32]u8 = undefined;
+            const label = std.fmt.bufPrintZ(&label_buf, "Vertex {d}", .{i}) catch "Vertex";
+
+            if (c.ImGui_ColorEdit3(label, &color, 0)) {
+                v.color = color;
+            }
+        }
+
         c.ImGui_End();
     }
 
@@ -83,17 +102,19 @@ pub const App = struct {
 
             const cmd = try self.renderer.beginFrame(&self.window) orelse continue;
 
-            self.imgui.beginFrame();
-            self.drawUI();
-            self.imgui.endFrame(cmd);
-
             if (self.draw_triangle) {
                 self.renderer.submit(.{
                     .mesh = self.triangle_mesh,
                 });
             }
-
             self.renderer.render(cmd);
+
+            self.imgui.beginFrame();
+            self.drawUI();
+            self.imgui.endFrame(cmd);
+
+            try self.triangle_mesh.update(self.renderer.device(), &self.vertices);
+
             try self.renderer.endFrame(cmd, &self.window);
         }
     }
