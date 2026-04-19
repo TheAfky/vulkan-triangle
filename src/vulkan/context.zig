@@ -114,15 +114,14 @@ pub const VulkanContext = struct {
     }
 
     pub fn beginFrame(self: *Self, window: *Window) !?vk.CommandBuffer {
+        if (window.consumeResize()) {
+            try self.recreateSwapchain(window);
+         }
+
         const index = self.swapchain.image_index;
         const command_buffer = self.command_buffers[index];
 
         try self.swapchain.currentSwapchainImage().waitForFence(self.device);
-
-        if (window.consumeResize()) {
-            try self.recreateSwapchain(window);
-            return null;
-        }
 
         self.device.handle.resetCommandBuffer(command_buffer, .{}) catch {};
         try self.device.handle.beginCommandBuffer(command_buffer, &.{});
