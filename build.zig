@@ -5,6 +5,18 @@ const cimgui = @import("cimgui_zig");
 const Renderer = cimgui.Renderer;
 const Platform = cimgui.Platform;
 
+fn addIncludePathsToTranslateC(translate_c: *std.Build.Step.TranslateC, lib: *std.Build.Step.Compile) void {
+    for (lib.root_module.include_dirs.items) |*included| {
+        switch (included.*) {
+            .path => translate_c.addIncludePath(included.path),
+            .config_header_step => translate_c.addConfigHeader(included.config_header_step),
+            .path_system => translate_c.addSystemIncludePath(included.path_system),
+            .other_step => addIncludePathsToTranslateC(translate_c, included.other_step),
+            else => unreachable,
+        }
+    }
+}
+
 pub fn build(b: *std.Build) void {
     const use_system_glfw = b.option(bool, "use-system-glfw", "Link to system GLFW instead of building glfw.zig") orelse false;
 
@@ -29,9 +41,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     if (use_system_glfw) {
-        exe.linkSystemLibrary("glfw");
+        _ = exe.dependsOnSystemLibrary("glfw");
     } else {
-        exe.linkLibrary(glfw.artifact("glfw"));
+        exe.installLibraryHeaders(glfw.artifact("glfw"));
     }
 
     // zGLFW dependency
@@ -50,15 +62,26 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("vulkan", vulkan.module("vulkan-zig"));
 
     // CImgGui.zig dependency
+    const translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("c.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const cimgui_dep = b.dependency("cimgui_zig", .{
         .target = target,
         .optimize = optimize,
         .platforms = &[_]Platform{.GLFW},
         .renderers = &[_]Renderer{.Vulkan},
-        // .docking = true,
+        // .docking = true, // Default value: false
     });
+
     const cimgui_lib = cimgui_dep.artifact("cimgui");
-    exe.linkLibrary(cimgui_lib);
+    addIncludePathsToTranslateC(translate_c, cimgui_lib);
+    const c_module = translate_c.createModule();
+    c_module.linkLibrary(cimgui_lib);
+
+    exe.root_module.addImport("c", c_module);
 
     // Shader compilation
     const shader_dir = "src/shaders/";

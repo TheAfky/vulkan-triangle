@@ -150,8 +150,8 @@ pub const VulkanContext = struct {
             .extent = self.swapchain.surface_extent,
         };
 
-        self.device.handle.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
-        self.device.handle.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
+        self.device.handle.cmdSetViewport(command_buffer, 0, @ptrCast(&viewport));
+        self.device.handle.cmdSetScissor(command_buffer, 0, @ptrCast(&scissor));
 
         return command_buffer;
     }
@@ -224,6 +224,6 @@ fn createCommandBuffers(allocator: std.mem.Allocator, device: Device, framebuffe
 }
 
 fn destroyCommandBuffers(allocator: std.mem.Allocator, device: Device, command_pool: vk.CommandPool, command_buffers: []vk.CommandBuffer) void {
-    device.handle.freeCommandBuffers(command_pool, @intCast(command_buffers.len), command_buffers.ptr);
+    device.handle.freeCommandBuffers(command_pool, command_buffers);
     allocator.free(command_buffers);
 }

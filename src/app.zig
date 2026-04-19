@@ -6,13 +6,13 @@ const ImGui = @import("imgui.zig").Imgui;
 const Mesh = @import("renderer/resources/mesh.zig").Mesh;
 const Vertex = @import("renderer/resources/vertex.zig").Vertex;
 
-pub const c = @cImport({ @cInclude("dcimgui.h"); });
+const c = @import("c");
 
 const application_name = "Vulkan Triangle";
 const window_width: u32 = 960;
 const window_height: u32 = 640;
 
-const vertices = [_]Vertex{
+const initial_vertices = [_]Vertex{
     .{ .pos = .{ 0, -0.5, 0 }, .color = .{ 1, 0, 0 } },
     .{ .pos = .{ 0.5, 0.5, 0 }, .color = .{ 0, 1, 0 } },
     .{ .pos = .{ -0.5, 0.5, 0 }, .color = .{ 0, 0, 1 } },
@@ -27,11 +27,7 @@ pub const App = struct {
     triangle_mesh: Mesh,
     imgui: ImGui,
     draw_triangle: bool = true,
-    vertices: [3]Vertex = .{
-        .{ .pos = .{ 0, -0.5, 0 }, .color = .{ 1, 0, 0 } },
-        .{ .pos = .{ 0.5, 0.5, 0 }, .color = .{ 0, 1, 0 } },
-        .{ .pos = .{ -0.5, 0.5, 0 }, .color = .{ 0, 0, 1 } },
-    },
+    vertices: [3]Vertex = initial_vertices,
 
     pub fn init(allocator: std.mem.Allocator) !Self {
         var window = try Window.init(window_width, window_height, application_name);
@@ -42,7 +38,7 @@ pub const App = struct {
 
         var triangle_mesh = try Mesh.create(
             renderer.device(),
-            &vertices,
+            &initial_vertices,
             .{ .vertex_buffer_bit = true },
             .{ .host_visible_bit = true, .host_coherent_bit = true },
         );
@@ -71,7 +67,9 @@ pub const App = struct {
                 c.ImGuiWindowFlags_NoBackground,
         );
 
-        c.ImGui_Text("Crazy Triangle");
+        c.ImGui_SetWindowFontScale(2);
+        c.ImGui_Text("Controls");
+        c.ImGui_SetWindowFontScale(1);
 
         if (c.ImGui_Button(
             if (self.draw_triangle) "Hide triangle" else "Show triangle",

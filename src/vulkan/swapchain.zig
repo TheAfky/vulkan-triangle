@@ -149,10 +149,10 @@ pub const Swapchain = struct {
     pub fn present(self: *Self, command_buffer: vk.CommandBuffer) !void {
         const current_swapchain_image = self.currentSwapchainImage();
         try current_swapchain_image.waitForFence(self.device);
-        try self.device.handle.resetFences(1, @ptrCast(&current_swapchain_image.frame_fence));
+        try self.device.handle.resetFences(@ptrCast(&current_swapchain_image.frame_fence));
 
         const wait_stage = [_]vk.PipelineStageFlags{.{ .top_of_pipe_bit = true }};
-        try self.device.handle.queueSubmit(self.device.graphics_queue.handle, 1, &[_]vk.SubmitInfo{.{
+        try self.device.handle.queueSubmit(self.device.graphics_queue.handle, &[_]vk.SubmitInfo{.{
             .wait_semaphore_count = 1,
             .p_wait_semaphores = @ptrCast(&current_swapchain_image.image_acquired),
             .p_wait_dst_stage_mask = &wait_stage,
@@ -249,7 +249,7 @@ pub const SwapchainImage = struct {
     }
 
     pub fn waitForFence(self: Self, device: Device) !void {
-        _ = try device.handle.waitForFences(1, @ptrCast(&self.frame_fence), .true, std.math.maxInt(u64));
+        _ = try device.handle.waitForFences(@ptrCast(&self.frame_fence), .true, std.math.maxInt(u64));
     }
 };
 

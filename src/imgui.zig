@@ -5,15 +5,7 @@ const zglfw = @import("zglfw");
 const Window = @import("window.zig").Window;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
 const Device = @import("vulkan/device.zig").Device;
-
-pub const c = @cImport({
-    @cDefine("GLFW_INCLUDE_VULKAN", "1");
-    @cDefine("GLFW_INCLUDE_NONE", "1");
-    @cInclude("GLFW/glfw3.h");
-    @cInclude("dcimgui.h");
-    @cInclude("backends/dcimgui_impl_glfw.h");
-    @cInclude("backends/dcimgui_impl_vulkan.h");
-});
+const c = @import("c");
 
 pub const Imgui = struct {
     const Self = @This();

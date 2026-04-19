@@ -173,7 +173,6 @@ pub const Pipeline = struct {
 
         const result = try self.device.handle.createGraphicsPipelines(
             .null_handle,
-            1,
             @ptrCast(&graphics_pipeline),
             null,
             @ptrCast(&self.pipeline),

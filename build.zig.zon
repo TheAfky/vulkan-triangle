@@ -5,20 +5,20 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .vulkan = .{
-            .url = "git+https://github.com/Snektron/vulkan-zig.git#f879074293f0e2f718c93fd19cc0a96260a3aa52",
-            .hash = "vulkan-0.0.0-r7Ytx6hBAwBUnt0XA-uOkR2hda4fAHFhQITNTgJpnFkY",
+            .url = "git+https://github.com/Snektron/vulkan-zig.git#be16fc99f7f794cba90334978c6c5aadeda8094f",
+            .hash = "vulkan-0.0.0-r7Ytx-V9AwCwHxS2TaZ-KJCp_3axidu3ASZUg3B512-k",
         },
         .zglfw = .{
             .url = "git+https://github.com/IridescenceTech/zglfw#188d33b5abdb24768905dec1dad6b3ffd60fc324",
             .hash = "zglfw-0.1.0-BghZXaTUAAAkCOlD_2akK4k1zIzo6HIXelVZu39yr_MO",
         },
         .glfw_zig = .{
-            .url = "git+https://github.com/tiawl/glfw.zig#5072e2f08f3d1f90939dbf9ebd8456577b3b879a",
-            .hash = "glfw_zig-1.0.0-NrvYozPSGQDcZZ55GgThpnHTauUKQMelDJIryXu1HL0I",
+            .url = "git+https://github.com/tiawl/glfw.zig.git#291e4e1d26089530a3b8031fab07bc618e91f701",
+            .hash = "glfw_zig-1.0.0-NrvYoyvRGQDgKTTvaAaJLZWQsL6AL5F8jGsBla2V275Y",
         },
         .cimgui_zig = .{
-            .url = "git+https://github.com/tiawl/cimgui.zig#7d6562db008a060cbaaa1fbf7e12044955d05ffb",
-            .hash = "cimgui_zig-1.0.0-2XubkpuEugBHi-a3OWRxJvma7G6PYawFuzerOq-Xk4JH",
+            .url = "git+https://github.com/tiawl/cimgui.zig.git#0de4765591bf33b6473a96598238d74b1ce70f7c",
+            .hash = "cimgui_zig-1.0.0-2XubkmPNvwCdkhjfQ3XnR0s-u5aGB3ZoFlZUOnNqYlUD",
         },
     },
 
