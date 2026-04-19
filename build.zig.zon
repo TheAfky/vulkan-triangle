@@ -1,8 +1,8 @@
 .{
     .name = .vulkan_triangle,
-    .version = "1.2.3",
+    .version = "1.3.4",
     .fingerprint = 0x191a3a4012e6a418,
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .vulkan = .{
             .url = "git+https://github.com/Snektron/vulkan-zig.git#be16fc99f7f794cba90334978c6c5aadeda8094f",
