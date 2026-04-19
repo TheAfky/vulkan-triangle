@@ -53,7 +53,7 @@ pub const Renderer = struct {
                 command_buffer,
                 0,
                 1,
-                &[_]vk.Buffer{mesh.vertex_buffer},
+                &[_]vk.Buffer{mesh.vertex_buffer.handle},
                 &[_]vk.DeviceSize{0},
             );
 

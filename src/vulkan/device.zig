@@ -146,7 +146,6 @@ pub const Device = struct {
         }, null);
 
         const mem_requirements = self.handle.getBufferMemoryRequirements(buffer);
-
         const memory = try self.allocateMemory(mem_requirements, properties);
 
         try self.handle.bindBufferMemory(buffer, memory, 0);
