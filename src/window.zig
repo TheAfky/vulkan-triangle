@@ -1,13 +1,11 @@
 const std = @import("std");
-const zglfw = @import("zglfw");
 const vk = @import("vulkan");
+const zglfw = @import("zglfw");
 
 pub const WindowError = error{ WindowCreationFailed, SurfaceCreationFailed };
+pub const FramebufferSize = struct{ width: u32, height: u32 };
 
-pub const FramebufferSize = struct {
-    width: u32,
-    height: u32,
-};
+extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
 pub const Window = struct {
     const Self = @This();
@@ -100,5 +98,10 @@ pub const Window = struct {
         var glfw_extensions_count: u32 = 0;
         const glfw_extensions = zglfw.getRequiredInstanceExtensions(&glfw_extensions_count) orelse return error.MissingGLFWExtensions;
         return @ptrCast(glfw_extensions[0..glfw_extensions_count]);
+    }
+
+    pub fn getInstanceProcAddress(self: Self) *const fn (vk.Instance, [*:0]const u8) callconv(.c) vk.PfnVoidFunction {
+        _ = self;
+        return glfwGetInstanceProcAddress;
     }
 };

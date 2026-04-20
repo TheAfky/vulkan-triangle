@@ -62,8 +62,8 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("vulkan", vulkan.module("vulkan-zig"));
 
     // CImgGui.zig dependency
-    const translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("c.h"),
+    const cimgui_translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("include/cimgui.h"),
         .target = target,
         .optimize = optimize,
     });
@@ -77,11 +77,10 @@ pub fn build(b: *std.Build) void {
     });
 
     const cimgui_lib = cimgui_dep.artifact("cimgui");
-    addIncludePathsToTranslateC(translate_c, cimgui_lib);
-    const c_module = translate_c.createModule();
-    c_module.linkLibrary(cimgui_lib);
-
-    exe.root_module.addImport("c", c_module);
+    addIncludePathsToTranslateC(cimgui_translate_c, cimgui_lib);
+    const cimgui_c_module = cimgui_translate_c.createModule();
+    cimgui_c_module.linkLibrary(cimgui_lib);
+    exe.root_module.addImport("cimgui", cimgui_c_module);
 
     // Shader compilation
     const shader_dir = "src/shaders/";

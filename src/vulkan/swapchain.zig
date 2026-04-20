@@ -1,8 +1,8 @@
 const std = @import("std");
 const vk = @import("vulkan");
 
-const Device = @import("device.zig").Device;
 const Window = @import("../window.zig").Window;
+const Device = @import("device.zig").Device;
 
 pub const Swapchain = struct {
     const Self = @This();

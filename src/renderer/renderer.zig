@@ -1,12 +1,11 @@
 const std = @import("std");
 const vk = @import("vulkan");
 
+const Window = @import("../window.zig").Window;
+const DrawCommand = @import("resources/draw_command.zig").DrawCommand;
 const VulkanContext = @import("../vulkan/context.zig").VulkanContext;
 const Instance = @import("../vulkan/instance.zig").Instance;
 const Device = @import("../vulkan/device.zig").Device;
-
-const Window = @import("../window.zig").Window;
-const DrawCommand = @import("resources/draw_command.zig").DrawCommand;
 
 pub const Renderer = struct {
     const Self = @This();

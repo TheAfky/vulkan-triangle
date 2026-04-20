@@ -1,23 +1,11 @@
 const std = @import("std");
 const vk = @import("vulkan");
-const zglfw = @import("zglfw");
-
-const c = @cImport({
-    @cDefine("GLFW_INCLUDE_VULKAN", "1");
-    @cDefine("GLFW_INCLUDE_NONE", "1");
-    @cInclude("GLFW/glfw3.h");
-    @cInclude("dcimgui.h");
-    @cInclude("backends/dcimgui_impl_glfw.h");
-    @cInclude("backends/dcimgui_impl_vulkan.h");
-});
 
 pub const Window = @import("../window.zig").Window;
 pub const Device = @import("device.zig").Device;
 pub const Instance = @import("instance.zig").Instance;
 pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const Pipeline = @import("pipeline.zig").Pipeline;
-
-extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
 
 pub const VulkanContext = struct {
     const Self = @This();
@@ -37,7 +25,7 @@ pub const VulkanContext = struct {
     command_buffers: []vk.CommandBuffer,
 
     pub fn init(allocator: std.mem.Allocator, application_name: [*:0]const u8, engine_name: [*:0]const u8, window: *Window) !Self {
-        const base_wrapper = vk.BaseWrapper.load(glfwGetInstanceProcAddress);
+        const base_wrapper = vk.BaseWrapper.load(window.getInstanceProcAddress());
 
         const instance = try Instance.init(allocator, base_wrapper, application_name, engine_name, window);
         errdefer instance.deinit();

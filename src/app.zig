@@ -1,16 +1,11 @@
 const std = @import("std");
+const cimgui = @import("cimgui");
 
 const Window = @import("window.zig").Window;
 const Renderer = @import("renderer/renderer.zig").Renderer;
 const ImGui = @import("imgui.zig").Imgui;
 const Mesh = @import("renderer/resources/mesh.zig").Mesh;
 const Vertex = @import("renderer/resources/vertex.zig").Vertex;
-
-const c = @import("c");
-
-const application_name = "Vulkan Triangle";
-const window_width: u32 = 960;
-const window_height: u32 = 640;
 
 const initial_vertices = [_]Vertex{
     .{ .pos = .{ 0, -0.5, 0 }, .color = .{ 1, 0, 0 } },
@@ -29,7 +24,7 @@ pub const App = struct {
     draw_triangle: bool = true,
     vertices: [3]Vertex = initial_vertices,
 
-    pub fn init(allocator: std.mem.Allocator) !Self {
+    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32, application_name: []const u8) !Self {
         var window = try Window.init(window_width, window_height, application_name);
         errdefer window.deinit();
 
@@ -57,27 +52,27 @@ pub const App = struct {
     }
 
     fn drawUI(self: *Self) void {
-        c.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
-        c.ImGui_SetNextWindowSize(.{ .x = 300, .y = 300}, 0);
-        _ = c.ImGui_Begin(
+        cimgui.ImGui_SetNextWindowPos(.{ .x = 0, .y = 0 }, 0);
+        cimgui.ImGui_SetNextWindowSize(.{ .x = 300, .y = 300}, 0);
+        _ = cimgui.ImGui_Begin(
             "Main",
             1,
-            c.ImGuiWindowFlags_NoDecoration |
-                c.ImGuiWindowFlags_NoMove |
-                c.ImGuiWindowFlags_NoBackground,
+            cimgui.ImGuiWindowFlags_NoDecoration |
+                cimgui.ImGuiWindowFlags_NoMove |
+                cimgui.ImGuiWindowFlags_NoBackground,
         );
 
-        c.ImGui_SetWindowFontScale(2);
-        c.ImGui_Text("Controls");
-        c.ImGui_SetWindowFontScale(1);
+        cimgui.ImGui_SetWindowFontScale(2);
+        cimgui.ImGui_Text("Controls");
+        cimgui.ImGui_SetWindowFontScale(1);
 
-        if (c.ImGui_Button(
+        if (cimgui.ImGui_Button(
             if (self.draw_triangle) "Hide triangle" else "Show triangle",
         )) {
             self.draw_triangle = !self.draw_triangle;
         }
 
-        c.ImGui_Separator();
+        cimgui.ImGui_Separator();
 
         for (&self.vertices, 0..) |*v, i| {
             var color: [3]f32 = v.color;
@@ -85,12 +80,12 @@ pub const App = struct {
             var label_buf: [32]u8 = undefined;
             const label = std.fmt.bufPrintZ(&label_buf, "Vertex {d}", .{i}) catch "Vertex";
 
-            if (c.ImGui_ColorEdit3(label, &color, 0)) {
+            if (cimgui.ImGui_ColorEdit3(label, &color, 0)) {
                 v.color = color;
             }
         }
 
-        c.ImGui_End();
+        cimgui.ImGui_End();
     }
 
     pub fn run(self: *App) !void {

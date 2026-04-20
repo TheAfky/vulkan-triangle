@@ -1,21 +1,19 @@
-const std = @import("std");
 const vk = @import("vulkan");
-const zglfw = @import("zglfw");
+const cimgui = @import("cimgui");
 
 const Window = @import("window.zig").Window;
 const VulkanContext = @import("vulkan/context.zig").VulkanContext;
 const Device = @import("vulkan/device.zig").Device;
-const c = @import("c");
 
 pub const Imgui = struct {
     const Self = @This();
 
-    io: *c.ImGuiIO,
+    io: *cimgui.ImGuiIO,
     descriptor_pool: vk.DescriptorPool,
 
     pub fn init(vulkan_context: *VulkanContext, window: *Window) !Self {
-        _ = c.ImGui_CreateContext(null);
-        const io = c.ImGui_GetIO();
+        _ = cimgui.ImGui_CreateContext(null);
+        const io = cimgui.ImGui_GetIO();
         io.*.IniFilename = null;
 
         const pool_sizes = [_]vk.DescriptorPoolSize{
@@ -34,12 +32,12 @@ pub const Imgui = struct {
         }, null);
         errdefer vulkan_context.device.handle.destroyDescriptorPool(descriptor_pool, null);
 
-        _ = c.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.handle), true);
-        errdefer c.cImGui_ImplGlfw_Shutdown();
+        _ = cimgui.cImGui_ImplGlfw_InitForVulkan(@ptrCast(window.handle), true);
+        errdefer cimgui.cImGui_ImplGlfw_Shutdown();
 
         const api_version = vk.makeApiVersion(0, 1, 3, 0);
 
-        var init_info: c.ImGui_ImplVulkan_InitInfo = .{
+        var init_info: cimgui.ImGui_ImplVulkan_InitInfo = .{
             .Instance = @ptrFromInt(@intFromEnum(vulkan_context.instance.handle.handle)),
             .PhysicalDevice = @ptrFromInt(@intFromEnum(vulkan_context.device.physical_device)),
             .Device = @ptrFromInt(@intFromEnum(vulkan_context.device.handle.handle)),
@@ -54,7 +52,7 @@ pub const Imgui = struct {
             },
         };
 
-        if (!c.cImGui_ImplVulkan_LoadFunctionsEx(
+        if (!cimgui.cImGui_ImplVulkan_LoadFunctionsEx(
             @as(u32, @bitCast(api_version)),
             imguiLoader,
             @ptrCast(&vulkan_context.instance.handle.handle),
@@ -62,15 +60,15 @@ pub const Imgui = struct {
             return error.ImGuiVulkanLoadFailure;
         }
 
-        if (!c.cImGui_ImplVulkan_Init(&init_info)) {
+        if (!cimgui.cImGui_ImplVulkan_Init(&init_info)) {
             return error.ImGuiVulkanInitFailure;
         }
 
-        c.ImGui_StyleColorsClassic(null);
+        cimgui.ImGui_StyleColorsClassic(null);
 
-        const style = c.ImGui_GetStyle();
+        const style = cimgui.ImGui_GetStyle();
         style.*.FontScaleDpi = 1.5;
-        c.ImGuiStyle_ScaleAllSizes(style, 1.5);
+        cimgui.ImGuiStyle_ScaleAllSizes(style, 1.5);
 
         return Self{
             .io = io,
@@ -80,29 +78,29 @@ pub const Imgui = struct {
 
     pub fn beginFrame(self: Self) void {
         _ = self;
-        c.cImGui_ImplVulkan_NewFrame();
-        c.cImGui_ImplGlfw_NewFrame();
-        c.ImGui_NewFrame();
+        cimgui.cImGui_ImplVulkan_NewFrame();
+        cimgui.cImGui_ImplGlfw_NewFrame();
+        cimgui.ImGui_NewFrame();
     }
 
     pub fn endFrame(self: Self, command_buffer: vk.CommandBuffer) void {
         _ = self;
-        c.ImGui_Render();
-        const draw_data = c.ImGui_GetDrawData();
-        c.cImGui_ImplVulkan_RenderDrawData(draw_data, @ptrFromInt(@intFromEnum(command_buffer)));
+        cimgui.ImGui_Render();
+        const draw_data = cimgui.ImGui_GetDrawData();
+        cimgui.cImGui_ImplVulkan_RenderDrawData(draw_data, @ptrFromInt(@intFromEnum(command_buffer)));
     }
 
     pub fn deinit(self: Self, device: *Device) void {
         _ = device.handle.deviceWaitIdle() catch {};
 
-        c.cImGui_ImplVulkan_Shutdown();
-        c.cImGui_ImplGlfw_Shutdown();
-        c.ImGui_DestroyContext(null);
+        cimgui.cImGui_ImplVulkan_Shutdown();
+        cimgui.cImGui_ImplGlfw_Shutdown();
+        cimgui.ImGui_DestroyContext(null);
         device.handle.destroyDescriptorPool(self.descriptor_pool, null);
     }
 };
 
-fn imguiLoader(name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) c.PFN_vkVoidFunction {
+fn imguiLoader(name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) cimgui.PFN_vkVoidFunction {
     const instance_ptr = user_data orelse return null;
     const instance: *vk.Instance = @ptrCast(@alignCast(instance_ptr));
     return glfwGetInstanceProcAddress(instance.*, name);
