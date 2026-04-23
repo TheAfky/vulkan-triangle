@@ -64,7 +64,8 @@ pub const Imgui = struct {
             return error.ImGuiVulkanInitFailure;
         }
 
-        cimgui.ImGui_StyleColorsClassic(null);
+        // cimgui.ImGui_StyleColorsClassic(null);
+        cimgui.ImGui_StyleColorsLight(null);
 
         const style = cimgui.ImGui_GetStyle();
         style.*.FontScaleDpi = 1.5;
@@ -87,7 +88,10 @@ pub const Imgui = struct {
         _ = self;
         cimgui.ImGui_Render();
         const draw_data = cimgui.ImGui_GetDrawData();
-        cimgui.cImGui_ImplVulkan_RenderDrawData(draw_data, @ptrFromInt(@intFromEnum(command_buffer)));
+        cimgui.cImGui_ImplVulkan_RenderDrawData(
+            draw_data,
+            @ptrFromInt(@intFromEnum(command_buffer))
+        );
     }
 
     pub fn deinit(self: Self, device: *Device) void {

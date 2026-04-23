@@ -115,14 +115,24 @@ pub const VulkanContext = struct {
         try self.device.handle.beginCommandBuffer(command_buffer, &.{});
 
         const clear: vk.ClearValue = .{
-            .color = .{ .float_32 = .{ 0.0, 0.0, 0.0, 1.0 } },
+            .color = .{ .float_32 = .{ 1.0, 1.0, 1.0, 1.0 } },
         };
 
         const framebuffer = self.framebuffers[index];
-        self.device.handle.cmdBeginRenderPass(command_buffer, &.{ .render_pass = self.pipeline.render_pass, .framebuffer = framebuffer, .render_area = .{
-            .offset = .{ .x = 0, .y = 0 },
-            .extent = self.swapchain.surface_extent,
-        }, .clear_value_count = 1, .p_clear_values = @ptrCast(&clear) }, .@"inline");
+        self.device.handle.cmdBeginRenderPass(
+            command_buffer,
+            &.{
+                .render_pass = self.pipeline.render_pass,
+                .framebuffer = framebuffer,
+                .render_area = .{
+                    .offset = .{ .x = 0, .y = 0 },
+                    .extent = self.swapchain.surface_extent,
+                },
+                .clear_value_count = 1,
+                .p_clear_values = @ptrCast(&clear)
+            },
+            .@"inline"
+        );
 
         const viewport = vk.Viewport{
             .x = 0,
